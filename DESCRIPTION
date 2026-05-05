@@ -1,6 +1,6 @@
 Package: matxingraphout
 Title: Convert Adjacency Matrices to SVG, DOT, and Mermaid Graphs
-Version: 0.2.0
+Version: 0.3.0
 Authors@R:
     person("Shimpei", "Morimoto", email = "your@email.com",
            role = c("aut", "cre"))
