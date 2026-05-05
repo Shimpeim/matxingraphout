@@ -18,7 +18,11 @@ graph_to_outputs(
   default_fontcolour = "#222222",
   default_stroke = "#333333",
   edge_colour = "#444444",
-  edge_width = 1.5
+  edge_width = 1.5,
+  layout = "manual",
+  circle_r = NULL,
+  circle_cx = NULL,
+  circle_cy = NULL
 )
 }
 \arguments{
@@ -68,6 +72,19 @@ is absent or \code{NA}).}
 \item{edge_colour}{Colour applied to all edges and arrowheads.}
 
 \item{edge_width}{Stroke width for edges in pixels.}
+
+\item{layout}{Node positioning mode.  \code{"manual"} (default) uses the \code{x} and
+\code{y} columns of \code{node_props} as supplied.  \code{"circular"} ignores those
+columns and places all nodes at equal angular intervals around a circle,
+starting at the top (12 o'clock) and proceeding clockwise.}
+
+\item{circle_r}{Radius of the circle in pixels when \code{layout = "circular"}.
+\code{NULL} (default) auto-sizes to \code{node_spacing * n / (2 * pi)} where
+\code{node_spacing = max(default_width, default_height) * 1.5}.}
+
+\item{circle_cx, circle_cy}{Centre of the circle in SVG pixel space when
+\code{layout = "circular"}.  Both default to \code{circle_r + svg_padding + max(default_width, default_height) / 2} so the full circle fits inside the
+canvas with padding.}
 }
 \value{
 Invisibly: a named list with elements \code{svg}, \code{dot}, and \code{mermaid},
