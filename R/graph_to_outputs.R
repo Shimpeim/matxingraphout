@@ -37,6 +37,17 @@
 #' @param default_stroke Default node border colour.
 #' @param edge_colour Colour applied to all edges and arrowheads.
 #' @param edge_width Stroke width for edges in pixels.
+#' @param layout Node positioning mode.  `"manual"` (default) uses the `x` and
+#'   `y` columns of `node_props` as supplied.  `"circular"` ignores those
+#'   columns and places all nodes at equal angular intervals around a circle,
+#'   starting at the top (12 o'clock) and proceeding clockwise.
+#' @param circle_r Radius of the circle in pixels when `layout = "circular"`.
+#'   `NULL` (default) auto-sizes to `node_spacing * n / (2 * pi)` where
+#'   `node_spacing = max(default_width, default_height) * 1.5`.
+#' @param circle_cx,circle_cy Centre of the circle in SVG pixel space when
+#'   `layout = "circular"`.  Both default to `circle_r + svg_padding +
+#'   max(default_width, default_height) / 2` so the full circle fits inside the
+#'   canvas with padding.
 #'
 #' @return Invisibly: a named list with elements `svg`, `dot`, and `mermaid`,
 #'   each a single character string containing the full source of that format.
@@ -83,7 +94,11 @@ graph_to_outputs <- function(
     default_fontcolour = "#222222",
     default_stroke     = "#333333",
     edge_colour        = "#444444",
-    edge_width         = 1.5
+    edge_width         = 1.5,
+    layout             = "manual",
+    circle_r           = NULL,
+    circle_cx          = NULL,
+    circle_cy          = NULL
 ) {
 
   # ── 0. Validate & normalise inputs ─────────────────────────────────────────
@@ -139,6 +154,20 @@ graph_to_outputs <- function(
 
   for (col in c("x", "y", "width", "height", "fontsize"))
     node_props[[col]] <- as.numeric(node_props[[col]])
+
+  # ── 0b. Circular layout (overrides x / y) ──────────────────────────────────
+  layout <- match.arg(layout, c("manual", "circular"))
+  if (layout == "circular") {
+    node_spacing <- max(default_width, default_height) * 1.5
+    if (is.null(circle_r))
+      circle_r <- node_spacing * n / (2 * pi)
+    half_node <- max(default_width, default_height) / 2
+    if (is.null(circle_cx)) circle_cx <- circle_r + svg_padding + half_node
+    if (is.null(circle_cy)) circle_cy <- circle_r + svg_padding + half_node
+    angles <- seq(0, 2 * pi, length.out = n + 1)[-(n + 1)] - pi / 2
+    node_props$x <- circle_cx + circle_r * cos(angles)
+    node_props$y <- circle_cy + circle_r * sin(angles)
+  }
 
   # ── 1–3. Build representations ─────────────────────────────────────────────
   svg_str <- .svg_build(adj_matrix, node_props, directed,
