@@ -83,23 +83,16 @@
 #'   `layout = "circular"`.  Both default to `circle_r + svg_padding +
 #'   max(default_width, default_height) / 2` so the full circle fits inside the
 #'   canvas with padding.
-#' @param arc_n Integer ≥ 1.  Number of nearest neighbouring nodes used to
-#'   compute the arc origin O for each edge when `edge_curvature` or
-#'   `overlay_edge_curvature` is `"auto"`.  For each edge i→j, the midpoint
-#'   of the two node centres is found, the `arc_n` nodes nearest to that
-#'   midpoint (excluding i and j themselves) are identified, and their centroid
-#'   becomes O.  The edge is then drawn as the arc of the circumscribed circle
-#'   of O–P1–P2 that avoids O, giving curvature that follows the local
-#'   neighbourhood structure of the graph.  Default `3L`.  When fewer than
-#'   `arc_n` non-endpoint nodes exist the available nodes are used; if none
-#'   exist (e.g. a 2-node graph) the edge falls back to a straight line.
 #' @param edge_curvature Controls arc routing for **structural edges**
 #'   (`adj_matrix`).  Works for any layout mode:
 #'   \describe{
-#'     \item{`"auto"`}{(default) Draws each edge as a circumscribed-circle arc
-#'       whose origin is the centroid of the `arc_n` nearest neighbouring nodes
-#'       (see `arc_n`).  Falls back to a straight line when the three points
-#'       are collinear or no non-endpoint nodes exist.}
+#'     \item{`"auto"`}{(default) Draws each edge as the arc of the
+#'       circumscribed circle of O–P1–P2 that avoids O, where O is the
+#'       position of the node with the highest eigenvector centrality score
+#'       (power-iteration on the symmetrised adjacency matrix).  This single
+#'       global origin gives curvature that follows the structural centre of
+#'       the graph.  Falls back to a straight line when the three points are
+#'       collinear (no finite circle exists).}
 #'     \item{`"straight"`}{Always draws straight lines.}
 #'   }
 #' @param overlay_edge_curvature Controls arc routing for **overlay edges**
@@ -193,7 +186,6 @@ graph_to_outputs <- function(
     circle_r                = NULL,
     circle_cx               = NULL,
     circle_cy               = NULL,
-    arc_n                   = 3L,
     edge_curvature          = "auto",
     overlay_edge_curvature  = "auto"
 ) {
@@ -218,9 +210,6 @@ graph_to_outputs <- function(
                                                 "tree", "bipartite", "circular"))
   edge_curvature         <- match.arg(edge_curvature,         c("auto", "straight"))
   overlay_edge_curvature <- match.arg(overlay_edge_curvature, c("auto", "straight"))
-  arc_n <- as.integer(arc_n)
-  if (length(arc_n) != 1L || is.na(arc_n) || arc_n < 0L)
-    stop("arc_n must be a non-negative integer.")
 
   # x/y are only required for manual layout; other layouts compute them
   req_xy       <- layout == "manual"
@@ -311,12 +300,25 @@ graph_to_outputs <- function(
                                     default_width, default_height, svg_padding)
   }
 
+  # ── Arc origin: node with highest eigenvector centrality ────────────────────
+  # Computed only when at least one edge type uses arc routing.
+  # The hub node position serves as the global O in the circumscribed-circle
+  # arc calculation, anchoring curvature at the structural centre of the graph.
+  need_arc <- edge_curvature != "straight" || overlay_edge_curvature != "straight"
+  radial_center <- if (need_arc) {
+    ec  <- .eigenvector_centrality(adj_matrix)
+    hub <- which.max(ec)
+    c(node_props$x[hub], node_props$y[hub])
+  } else {
+    NULL
+  }
+
   # ── 1–3. Build representations ─────────────────────────────────────────────
   svg_str <- .svg_build(adj_matrix, node_props, directed,
                         svg_padding, edge_colour, edge_width,
                         adj_overlay, overlay_edge_colour,
                         overlay_edge_width, overlay_edge_style,
-                        arc_n                  = arc_n,
+                        radial_center          = radial_center,
                         edge_curvature         = edge_curvature,
                         overlay_edge_curvature = overlay_edge_curvature)
   dot_str <- .dot_build(adj_matrix, node_props, directed,
@@ -651,4 +653,40 @@ graph_to_outputs <- function(
     in_degree                      = setNames(in_deg,  ids),
     out_degree                     = setNames(out_deg, ids)
   )
+}
+
+# ── Eigenvector centrality helper ─────────────────────────────────────────────
+
+#' Eigenvector centrality via power iteration (base R, no dependencies)
+#'
+#' Computes the principal eigenvector of the symmetrised adjacency matrix
+#' A_sym = (A != 0) | t(A != 0) using up to 200 iterations of power iteration
+#' with L∞ normalisation.  Converges when the maximum element-wise change
+#' between successive iterates falls below 1e-9.
+#'
+#' For disconnected graphs only the largest connected component receives
+#' non-zero scores; isolated nodes remain at zero.  When the graph has no
+#' edges at all (A_sym is all-zero), every node gets score 1/n so that
+#' `which.max` returns the first node rather than erroring.
+#'
+#' @return Named numeric vector of centrality scores, one per node, in the
+#'   same order as `rownames(adj_matrix)`.
+#'
+#' @keywords internal
+#' @noRd
+.eigenvector_centrality <- function(adj_matrix) {
+  n     <- nrow(adj_matrix)
+  A     <- adj_matrix != 0
+  A_sym <- A | t(A)               # symmetrise: treat directed edges as undirected
+
+  v <- rep(1 / n, n)
+  for (iter in seq_len(200L)) {
+    v_new <- as.numeric(A_sym %*% v)
+    norm  <- max(abs(v_new))
+    if (norm < 1e-12) break       # no edges — all scores stay equal
+    v_new <- v_new / norm
+    if (max(abs(v_new - v)) < 1e-9) { v <- v_new; break }
+    v <- v_new
+  }
+  setNames(v, rownames(adj_matrix))
 }

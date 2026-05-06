@@ -9,7 +9,7 @@
 .svg_build <- function(adj, np, directed, pad, ecol, ew,
                        adj_ov = NULL, ovcol = "#999999",
                        ovw = 1.0, ovstyle = "dashed",
-                       arc_n = 3L,
+                       radial_center = NULL,
                        edge_curvature = "auto",
                        overlay_edge_curvature = "auto") {
   n <- nrow(adj)
@@ -26,11 +26,14 @@
   np$sx <- np$x - xlo
   np$sy <- np$y - ylo
 
-  # Arc routing is active when curvature != "straight" and arc_n >= 1.
-  # The arc origin O is computed per-edge (see .arc_origin()); no global
-  # radial centre is used.
-  use_arc    <- edge_curvature         != "straight" && arc_n >= 1L
-  use_arc_ov <- overlay_edge_curvature != "straight" && arc_n >= 1L
+  # Global arc origin O = the eigenvector-centrality hub node (shifted to
+  # canvas coordinates).  NULL when edge_curvature = "straight" for both
+  # edge types, or when the graph has no edges.
+  has_rc     <- !is.null(radial_center)
+  rc_sx      <- if (has_rc) radial_center[1] - xlo else 0
+  rc_sy      <- if (has_rc) radial_center[2] - ylo else 0
+  use_arc    <- has_rc && edge_curvature         != "straight"
+  use_arc_ov <- has_rc && overlay_edge_curvature != "straight"
 
   buf <- character(0)
   .emit <- function(...) buf <<- c(buf, paste0(...))
@@ -93,16 +96,9 @@
           }
         }
 
-        if (use_arc) {
-          org <- .arc_origin((ax + bx) / 2, (ay + by) / 2,
-                             np$sx, np$sy, c(i, j), arc_n)
-          arc <- if (!is.null(org))
-            .circumcircle_arc_svg(from[1] - org[1], from[2] - org[2],
-                                  to[1]   - org[1], to[2]   - org[2])
-          else NULL
-        } else {
-          arc <- NULL
-        }
+        arc <- if (use_arc) .circumcircle_arc_svg(
+          from[1] - rc_sx, from[2] - rc_sy,
+          to[1]   - rc_sx, to[2]   - rc_sy) else NULL
 
         if (!is.null(arc)) {
           .emit('  <path d="M ', round(from[1], 1), ',', round(from[2], 1),
@@ -166,16 +162,9 @@
               to <- to - c(ux, uy) * 2
             }
           }
-          if (use_arc_ov) {
-            org_ov <- .arc_origin((ax + bx) / 2, (ay + by) / 2,
-                                  np$sx, np$sy, c(i, j), arc_n)
-            arc_ov <- if (!is.null(org_ov))
-              .circumcircle_arc_svg(from[1] - org_ov[1], from[2] - org_ov[2],
-                                    to[1]   - org_ov[1], to[2]   - org_ov[2])
-            else NULL
-          } else {
-            arc_ov <- NULL
-          }
+          arc_ov <- if (use_arc_ov) .circumcircle_arc_svg(
+            from[1] - rc_sx, from[2] - rc_sy,
+            to[1]   - rc_sx, to[2]   - rc_sy) else NULL
 
           if (!is.null(arc_ov)) {
             .emit('  <path d="M ', round(from[1], 1), ',', round(from[2], 1),
@@ -305,33 +294,6 @@
   s <- gsub(">",  "&gt;",   s, fixed = TRUE)
   s <- gsub('"',  "&quot;", s, fixed = TRUE)
   s
-}
-
-
-# ── Arc-origin helper ─────────────────────────────────────────────────────────
-
-#' Centroid of the N nearest nodes to a point, used as the arc origin O
-#'
-#' For a given edge midpoint (mx, my), ranks all nodes by their Euclidean
-#' distance to that point, excludes the two edge endpoints (indices in `excl`),
-#' and returns the centroid of the `arc_n` closest remaining nodes.  This
-#' centroid is used as origin O in the circumscribed-circle arc calculation,
-#' so each edge curves around its local neighbourhood rather than around a
-#' single global centre.
-#'
-#' Returns `NULL` when no non-excluded nodes exist (e.g. a 2-node graph),
-#' causing the caller to fall back to a straight line.
-#'
-#' @keywords internal
-#' @noRd
-.arc_origin <- function(mx, my, sx, sy, excl, arc_n) {
-  dists          <- sqrt((sx - mx)^2 + (sy - my)^2)
-  dists[excl]    <- Inf                          # exclude the edge endpoints
-  finite_idx     <- which(is.finite(dists))
-  if (!length(finite_idx)) return(NULL)
-  k              <- min(arc_n, length(finite_idx))
-  nearest        <- order(dists)[seq_len(k)]
-  c(mean(sx[nearest]), mean(sy[nearest]))
 }
 
 

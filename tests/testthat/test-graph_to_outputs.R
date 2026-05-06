@@ -399,29 +399,28 @@ test_that("no files are written when all file args are NULL", {
   expect_equal(before, after)
 })
 
-# ── 11. edge_curvature and arc_n ──────────────────────────────────────────────
+# ── 11. edge_curvature (eigenvector-centrality hub origin) ────────────────────
 
-test_that("edge_curvature='auto' with arc_n=3 produces SVG arc paths (circular)", {
+test_that("edge_curvature='auto' produces SVG arc paths (circular layout)", {
   res <- graph_to_outputs(.adj_nihr, .nodes_nihr,
-                          layout = "circular", arc_n = 3L,
+                          layout = "circular",
                           edge_curvature = "auto",
                           svg_file = NULL, dot_file = NULL, mermaid_file = NULL)
   expect_true(grepl("<path d=\"M ", res$svg, fixed = TRUE))
   expect_true(grepl(" A ", res$svg, fixed = TRUE))
 })
 
-test_that("edge_curvature='auto' with arc_n=3 produces SVG arc paths (sunburst)", {
+test_that("edge_curvature='auto' produces SVG arc paths (sunburst layout)", {
   res <- graph_to_outputs(.adj_nihr, .nodes_nihr,
-                          layout = "sunburst", arc_n = 3L,
+                          layout = "sunburst",
                           edge_curvature = "auto",
                           svg_file = NULL, dot_file = NULL, mermaid_file = NULL)
   expect_true(grepl(" A ", res$svg, fixed = TRUE))
 })
 
-test_that("edge_curvature='auto' with arc_n=3 produces arcs for manual layout too", {
-  # arc routing now works for any layout, not just radial ones
+test_that("edge_curvature='auto' produces arcs for manual layout", {
   res <- graph_to_outputs(.adj_nihr, .nodes_nihr,
-                          layout = "manual", arc_n = 3L,
+                          layout = "manual",
                           edge_curvature = "auto",
                           svg_file = NULL, dot_file = NULL, mermaid_file = NULL)
   edge_section <- sub("<!-- nodes -->.*", "", res$svg)
@@ -430,7 +429,7 @@ test_that("edge_curvature='auto' with arc_n=3 produces arcs for manual layout to
 
 test_that("edge_curvature='straight' suppresses all arc paths", {
   res <- graph_to_outputs(.adj_nihr, .nodes_nihr,
-                          layout = "circular", arc_n = 3L,
+                          layout = "circular",
                           edge_curvature = "straight",
                           svg_file = NULL, dot_file = NULL, mermaid_file = NULL)
   expect_true(grepl("<line ", res$svg, fixed = TRUE))
@@ -438,38 +437,14 @@ test_that("edge_curvature='straight' suppresses all arc paths", {
   expect_false(grepl(" A [0-9]", edge_section))
 })
 
-test_that("arc_n=0 suppresses arc routing even when edge_curvature='auto'", {
-  res <- graph_to_outputs(.adj_nihr, .nodes_nihr,
-                          layout = "circular", arc_n = 0L,
-                          edge_curvature = "auto",
-                          svg_file = NULL, dot_file = NULL, mermaid_file = NULL)
-  edge_section <- sub("<!-- nodes -->.*", "", res$svg)
-  expect_false(grepl(" A [0-9]", edge_section))
-})
-
 test_that("2-node graph falls back to straight line with edge_curvature='auto'", {
-  # Only 2 nodes: no non-endpoint nodes to form arc origin → straight line
+  # Hub node is one of the two endpoints; circumscribed circle degenerates → straight
   res <- graph_to_outputs(.adj2, .nodes2,
-                          layout = "manual", arc_n = 3L,
+                          layout = "manual",
                           edge_curvature = "auto",
                           svg_file = NULL, dot_file = NULL, mermaid_file = NULL)
   edge_section <- sub("<!-- nodes -->.*", "", res$svg)
   expect_false(grepl(" A [0-9]", edge_section))
-})
-
-test_that("arc_n=1 uses the single nearest node as origin", {
-  res <- graph_to_outputs(.adj_nihr, .nodes_nihr,
-                          layout = "sunburst", arc_n = 1L,
-                          edge_curvature = "auto",
-                          svg_file = NULL, dot_file = NULL, mermaid_file = NULL)
-  expect_true(grepl(" A ", res$svg, fixed = TRUE))
-})
-
-test_that("arc_n rejects negative values", {
-  expect_error(
-    graph_to_outputs(.adj_nihr, .nodes_nihr, arc_n = -1L,
-                     svg_file = NULL, dot_file = NULL, mermaid_file = NULL)
-  )
 })
 
 test_that("edge_curvature rejects unknown values", {
@@ -501,36 +476,26 @@ test_that("overlay_edge_curvature rejects unknown values", {
 
 test_that("main edges arc, overlay edges straight", {
   res <- graph_to_outputs(.adj_nihr, .nodes_nihr,
-                          layout = "sunburst",
-                          adj_overlay = .adj_ov,
-                          edge_curvature         = "auto",
-                          overlay_edge_curvature = "straight",
+                          layout = "sunburst", adj_overlay = .adj_ov,
+                          edge_curvature = "auto", overlay_edge_curvature = "straight",
                           svg_file = NULL, dot_file = NULL, mermaid_file = NULL)
-  # Main edges should contain SVG arc paths
   expect_true(grepl(" A ", .svg_main_edges(res$svg), fixed = TRUE))
-  # Overlay section should not contain arc paths
   expect_false(grepl(" A [0-9]", .svg_ov_edges(res$svg)))
 })
 
 test_that("main edges straight, overlay edges arc", {
   res <- graph_to_outputs(.adj_nihr, .nodes_nihr,
-                          layout = "sunburst",
-                          adj_overlay = .adj_ov,
-                          edge_curvature         = "straight",
-                          overlay_edge_curvature = "auto",
+                          layout = "sunburst", adj_overlay = .adj_ov,
+                          edge_curvature = "straight", overlay_edge_curvature = "auto",
                           svg_file = NULL, dot_file = NULL, mermaid_file = NULL)
-  # Main edge section should contain only lines, no arcs
   expect_false(grepl(" A [0-9]", .svg_main_edges(res$svg)))
-  # Overlay section should contain an arc path
   expect_true(grepl(" A ", .svg_ov_edges(res$svg), fixed = TRUE))
 })
 
 test_that("both edges straight produces no arc paths", {
   res <- graph_to_outputs(.adj_nihr, .nodes_nihr,
-                          layout = "sunburst",
-                          adj_overlay = .adj_ov,
-                          edge_curvature         = "straight",
-                          overlay_edge_curvature = "straight",
+                          layout = "sunburst", adj_overlay = .adj_ov,
+                          edge_curvature = "straight", overlay_edge_curvature = "straight",
                           svg_file = NULL, dot_file = NULL, mermaid_file = NULL)
   edge_section <- sub("<!-- nodes -->.*", "", res$svg)
   expect_false(grepl(" A [0-9]", edge_section))
