@@ -83,14 +83,24 @@
 #'   `layout = "circular"`.  Both default to `circle_r + svg_padding +
 #'   max(default_width, default_height) / 2` so the full circle fits inside the
 #'   canvas with padding.
+#' @param arc_n Integer ≥ 1.  Number of nearest neighbouring nodes used to
+#'   compute the arc origin O for each edge when `edge_curvature` or
+#'   `overlay_edge_curvature` is `"auto"`.  For each edge i→j, the midpoint
+#'   of the two node centres is found, the `arc_n` nodes nearest to that
+#'   midpoint (excluding i and j themselves) are identified, and their centroid
+#'   becomes O.  The edge is then drawn as the arc of the circumscribed circle
+#'   of O–P1–P2 that avoids O, giving curvature that follows the local
+#'   neighbourhood structure of the graph.  Default `3L`.  When fewer than
+#'   `arc_n` non-endpoint nodes exist the available nodes are used; if none
+#'   exist (e.g. a 2-node graph) the edge falls back to a straight line.
 #' @param edge_curvature Controls arc routing for **structural edges**
-#'   (`adj_matrix`) in radial layouts (`"circular"` and `"sunburst"`):
+#'   (`adj_matrix`).  Works for any layout mode:
 #'   \describe{
-#'     \item{`"auto"`}{(default) Uses circumscribed-circle arc routing when a
-#'       radial layout is active, so edges curve away from the layout centre
-#'       rather than cutting through it.  Falls back to straight lines when the
-#'       endpoints are collinear with the centre.}
-#'     \item{`"straight"`}{Always draws straight lines regardless of layout.}
+#'     \item{`"auto"`}{(default) Draws each edge as a circumscribed-circle arc
+#'       whose origin is the centroid of the `arc_n` nearest neighbouring nodes
+#'       (see `arc_n`).  Falls back to a straight line when the three points
+#'       are collinear or no non-endpoint nodes exist.}
+#'     \item{`"straight"`}{Always draws straight lines.}
 #'   }
 #' @param overlay_edge_curvature Controls arc routing for **overlay edges**
 #'   (`adj_overlay`) independently of `edge_curvature`.  Same values:
@@ -183,6 +193,7 @@ graph_to_outputs <- function(
     circle_r                = NULL,
     circle_cx               = NULL,
     circle_cy               = NULL,
+    arc_n                   = 3L,
     edge_curvature          = "auto",
     overlay_edge_curvature  = "auto"
 ) {
@@ -207,6 +218,9 @@ graph_to_outputs <- function(
                                                 "tree", "bipartite", "circular"))
   edge_curvature         <- match.arg(edge_curvature,         c("auto", "straight"))
   overlay_edge_curvature <- match.arg(overlay_edge_curvature, c("auto", "straight"))
+  arc_n <- as.integer(arc_n)
+  if (length(arc_n) != 1L || is.na(arc_n) || arc_n < 0L)
+    stop("arc_n must be a non-negative integer.")
 
   # x/y are only required for manual layout; other layouts compute them
   req_xy       <- layout == "manual"
@@ -297,24 +311,12 @@ graph_to_outputs <- function(
                                     default_width, default_height, svg_padding)
   }
 
-  # Radial centre for circumscribed-circle arc routing
-  radial_center <- if (layout == "circular") {
-    c(circle_cx, circle_cy)
-  } else if (layout == "sunburst") {
-    # Root nodes are placed at radius 0, i.e. at the layout centre
-    roots <- which(colSums(adj_matrix != 0) == 0L)
-    if (length(roots)) c(node_props$x[roots[1L]], node_props$y[roots[1L]])
-    else NULL
-  } else {
-    NULL
-  }
-
   # ── 1–3. Build representations ─────────────────────────────────────────────
   svg_str <- .svg_build(adj_matrix, node_props, directed,
                         svg_padding, edge_colour, edge_width,
                         adj_overlay, overlay_edge_colour,
                         overlay_edge_width, overlay_edge_style,
-                        radial_center          = radial_center,
+                        arc_n                  = arc_n,
                         edge_curvature         = edge_curvature,
                         overlay_edge_curvature = overlay_edge_curvature)
   dot_str <- .dot_build(adj_matrix, node_props, directed,

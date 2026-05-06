@@ -29,6 +29,7 @@ graph_to_outputs(
   circle_r = NULL,
   circle_cx = NULL,
   circle_cy = NULL,
+  arc_n = 3L,
   edge_curvature = "auto",
   overlay_edge_curvature = "auto"
 )
@@ -140,19 +141,26 @@ recommend \code{"sunburst"} over \code{"tree"}.  Default \code{3L}.}
 \code{circle_r + svg_padding + max(default_width, default_height) / 2} so
 the full circle fits inside the canvas with padding.}
 
+\item{arc_n}{Integer \eqn{\geq 1}.  Number of nearest neighbouring nodes used
+to compute the arc origin O for each edge when \code{edge_curvature} or
+\code{overlay_edge_curvature} is \code{"auto"}.  For each edge i→j, the
+midpoint of the two node centres is found, the \code{arc_n} nodes nearest to
+that midpoint (excluding i and j themselves) are identified, and their
+centroid becomes O.  The edge is then drawn as the arc of the circumscribed
+circle of O–P1–P2 that avoids O, giving curvature that follows the local
+neighbourhood structure of the graph rather than a fixed global centre.
+Default \code{3L}.  When fewer than \code{arc_n} non-endpoint nodes exist the
+available nodes are used; if none exist (e.g. a 2-node graph) the edge falls
+back to a straight line.}
+
 \item{edge_curvature}{Controls arc routing for \strong{structural edges}
-(\code{adj_matrix}) in radial layouts (\code{"circular"} and
-\code{"sunburst"}):
+(\code{adj_matrix}).  Works for any layout mode:
 \describe{
-  \item{\code{"auto"}}{(default) Uses circumscribed-circle arc routing when a
-    radial layout is active.  For each edge P1→P2, the function finds the
-    unique circle that passes through the layout centre O, P1, and P2 (the
-    circumscribed circle of the triangle O–P1–P2), then draws the arc of
-    that circle from P1 to P2 that does \emph{not} pass through O.  This
-    keeps edges curving around the centre rather than cutting through it.
-    Falls back to a straight line when O, P1, P2 are collinear (no finite
-    circle exists).}
-  \item{\code{"straight"}}{Always draws straight lines regardless of layout.}
+  \item{\code{"auto"}}{(default) Draws each edge as a circumscribed-circle arc
+    whose origin O is the centroid of the \code{arc_n} nearest neighbouring
+    nodes (see \code{arc_n}).  Falls back to a straight line when the three
+    points are collinear or no non-endpoint nodes exist.}
+  \item{\code{"straight"}}{Always draws straight lines.}
 }}
 
 \item{overlay_edge_curvature}{Controls arc routing for \strong{overlay edges}
