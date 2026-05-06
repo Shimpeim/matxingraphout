@@ -6,7 +6,9 @@
 
 #' @keywords internal
 #' @noRd
-.svg_build <- function(adj, np, directed, pad, ecol, ew) {
+.svg_build <- function(adj, np, directed, pad, ecol, ew,
+                       adj_ov = NULL, ovcol = "#999999",
+                       ovw = 1.0, ovstyle = "dashed") {
   n <- nrow(adj)
 
   # Canvas extents from node bounding boxes + padding
@@ -36,6 +38,10 @@
           ' refX="9" refY="3.5" orient="auto">')
     .emit('      <polygon points="0 0,10 3.5,0 7" fill="', ecol, '"/>')
     .emit('    </marker>')
+    if (!is.null(adj_ov))
+      .emit('    <marker id="arrowhead-ov" markerWidth="10" markerHeight="7"',
+            ' refX="9" refY="3.5" orient="auto">',
+            '<polygon points="0 0,10 3.5,0 7" fill="', ovcol, '"/></marker>')
     .emit('  </defs>')
   }
 
@@ -95,6 +101,49 @@
       }
 
       done[i, j] <- TRUE
+    }
+  }
+
+  # ── Overlay edges (drawn after structural edges, before nodes) ─────────────
+  if (!is.null(adj_ov)) {
+    ov_dash  <- if (ovstyle == "dashed") ' stroke-dasharray="5,3"' else ''
+    ov_css   <- sprintf('stroke="%s" stroke-width="%g" fill="none"%s',
+                        ovcol, ovw, ov_dash)
+    ov_mar   <- if (directed) ' marker-end="url(#arrowhead-ov)"' else ''
+    .emit('  <!-- overlay edges -->')
+    done_ov  <- matrix(FALSE, n, n)
+    for (i in seq_len(n)) {
+      for (j in seq_len(n)) {
+        v <- adj_ov[i, j]
+        if (v == 0 || (!directed && done_ov[j, i])) next
+        ax <- np$sx[i];  ay <- np$sy[i]
+        bx <- np$sx[j];  by <- np$sy[j]
+        if (i == j) {
+          rx <- np$width[i]  / 2;  ry <- np$height[i] / 2
+          ox <- ax + rx * 1.4;    oy <- ay - ry * 1.4
+          .emit('  <path d="M ', round(ax + rx * .5, 1), ',', round(ay - ry, 1),
+                ' C ', round(ox, 1), ',', round(ay - ry, 1),
+                ' ',  round(ox, 1), ',', round(oy, 1),
+                ' ',  round(ax + rx, 1), ',', round(ay, 1), '"',
+                ov_mar, ' ', ov_css, '/>')
+        } else {
+          from <- .boundary_pt(ax, ay, bx - ax, by - ay,
+                               np$shape[i], np$width[i], np$height[i])
+          to   <- .boundary_pt(bx, by, ax - bx, ay - by,
+                               np$shape[j], np$width[j], np$height[j])
+          if (directed) {
+            d <- sqrt((to[1] - from[1])^2 + (to[2] - from[2])^2)
+            if (d > 2) {
+              ux <- (to[1] - from[1]) / d;  uy <- (to[2] - from[2]) / d
+              to <- to - c(ux, uy) * 2
+            }
+          }
+          .emit('  <line x1="', round(from[1], 1), '" y1="', round(from[2], 1),
+                '" x2="', round(to[1], 1), '" y2="', round(to[2], 1), '"',
+                ov_mar, ' ', ov_css, '/>')
+        }
+        done_ov[i, j] <- TRUE
+      }
     }
   }
 

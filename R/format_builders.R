@@ -6,7 +6,9 @@
 
 #' @keywords internal
 #' @noRd
-.dot_build <- function(adj, np, directed) {
+.dot_build <- function(adj, np, directed,
+                       adj_ov = NULL, ovcol = "#999999",
+                       ovw = 1.0, ovstyle = "dashed") {
   n   <- nrow(adj)
   gkw <- if (directed) "digraph" else "graph"
   eop <- if (directed) "->"     else "--"
@@ -76,6 +78,25 @@
     }
   }
 
+  if (!is.null(adj_ov)) {
+    n_ov   <- nrow(adj_ov)
+    ov_dot_style <- paste0('style=', .dq(ovstyle),
+                           ', color=', .dq(ovcol),
+                           ', penwidth=', ovw)
+    out  <- c(out, "", "  // overlay edges")
+    done_ov <- matrix(FALSE, n_ov, n_ov)
+    for (i in seq_len(n_ov)) {
+      for (j in seq_len(n_ov)) {
+        v <- adj_ov[i, j]
+        if (v == 0 || (!directed && done_ov[j, i])) next
+        elbl <- if (v != 1) paste0(" label=", .dq(format(v, trim = TRUE)), ",") else " "
+        out  <- c(out, paste0("  ", .dq(np$id[i]), " ", eop, " ",
+                              .dq(np$id[j]), " [", elbl, ov_dot_style, "]"))
+        done_ov[i, j] <- TRUE
+      }
+    }
+  }
+
   out <- c(out, "}")
   paste(out, collapse = "\n")
 }
@@ -85,7 +106,8 @@
 
 #' @keywords internal
 #' @noRd
-.mmd_build <- function(adj, np, directed) {
+.mmd_build <- function(adj, np, directed,
+                       adj_ov = NULL, ovstyle = "dashed") {
   n <- nrow(adj)
 
   # Sanitise to a valid Mermaid node identifier: [A-Za-z0-9_], no leading digit
@@ -138,6 +160,28 @@
       out  <- c(out, sprintf("  %s %s%s %s",
                              .mid(np$id[i]), eop, lbl_part, .mid(np$id[j])))
       done[i, j] <- TRUE
+    }
+  }
+
+  if (!is.null(adj_ov)) {
+    n_ov  <- nrow(adj_ov)
+    # Mermaid dashed edge operators: -.-> (directed) or -.- (undirected)
+    ov_eop <- if (directed) {
+      if (ovstyle == "dashed") "-.->" else "-->"
+    } else {
+      if (ovstyle == "dashed") "-.-" else "---"
+    }
+    out  <- c(out, "  %% Overlay edges")
+    done_ov <- matrix(FALSE, n_ov, n_ov)
+    for (i in seq_len(n_ov)) {
+      for (j in seq_len(n_ov)) {
+        v <- adj_ov[i, j]
+        if (v == 0 || (!directed && done_ov[j, i])) next
+        lbl_part <- if (v != 1) paste0('|"', format(v, trim = TRUE), '"|') else ""
+        out  <- c(out, sprintf("  %s %s%s %s",
+                               .mid(np$id[i]), ov_eop, lbl_part, .mid(np$id[j])))
+        done_ov[i, j] <- TRUE
+      }
     }
   }
 

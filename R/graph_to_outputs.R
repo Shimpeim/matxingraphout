@@ -37,6 +37,16 @@
 #' @param default_stroke Default node border colour.
 #' @param edge_colour Colour applied to all edges and arrowheads.
 #' @param edge_width Stroke width for edges in pixels.
+#' @param adj_overlay Optional square numeric matrix of the same dimensions as
+#'   `adj_matrix`.  Non-zero entries add extra edges drawn on top of the
+#'   structural edges but **excluded from topology analysis**.  Useful for
+#'   annotations, cross-links, or relationships that should not influence the
+#'   graph classification or automatic layout.  `NULL` (default) = no overlay.
+#' @param overlay_edge_colour Colour for overlay edges.  Default `"#999999"`.
+#' @param overlay_edge_width Stroke width for overlay edges in pixels.
+#'   Default `1.0`.
+#' @param overlay_edge_style Line style for overlay edges: `"dashed"` (default)
+#'   or `"solid"`.
 #' @param layout Node positioning mode:
 #'   \describe{
 #'     \item{`"manual"`}{(default) Uses the `x`/`y` columns of `node_props`
@@ -146,8 +156,12 @@ graph_to_outputs <- function(
     default_fontsize   = 12,
     default_fontcolour = "#222222",
     default_stroke     = "#333333",
-    edge_colour        = "#444444",
-    edge_width         = 1.5,
+    edge_colour         = "#444444",
+    edge_width          = 1.5,
+    adj_overlay         = NULL,
+    overlay_edge_colour = "#999999",
+    overlay_edge_width  = 1.0,
+    overlay_edge_style  = "dashed",
     layout                  = "manual",
     sunburst_max_depth      = 3L,
     sunburst_min_branching  = 3,
@@ -210,6 +224,17 @@ graph_to_outputs <- function(
   for (col in c("x", "y", "width", "height", "fontsize"))
     node_props[[col]] <- as.numeric(node_props[[col]])
 
+  # ── 0a. Validate overlay matrix ────────────────────────────────────────────
+  if (!is.null(adj_overlay)) {
+    if (!is.matrix(adj_overlay) ||
+        !identical(dim(adj_overlay), dim(adj_matrix)))
+      stop("adj_overlay must be a matrix with the same dimensions as adj_matrix.")
+    if (!is.null(rownames(adj_matrix)) &&
+        !identical(dimnames(adj_overlay), dimnames(adj_matrix)))
+      stop("adj_overlay must have the same row/col names as adj_matrix.")
+    overlay_edge_style <- match.arg(overlay_edge_style, c("dashed", "solid"))
+  }
+
   # ── 0b. Topological analysis ────────────────────────────────────────────────
   topo <- .graph_topology(adj_matrix,
                           sunburst_max_depth, sunburst_min_branching)
@@ -247,9 +272,14 @@ graph_to_outputs <- function(
 
   # ── 1–3. Build representations ─────────────────────────────────────────────
   svg_str <- .svg_build(adj_matrix, node_props, directed,
-                        svg_padding, edge_colour, edge_width)
-  dot_str <- .dot_build(adj_matrix, node_props, directed)
-  mmd_str <- .mmd_build(adj_matrix, node_props, directed)
+                        svg_padding, edge_colour, edge_width,
+                        adj_overlay, overlay_edge_colour,
+                        overlay_edge_width, overlay_edge_style)
+  dot_str <- .dot_build(adj_matrix, node_props, directed,
+                        adj_overlay, overlay_edge_colour,
+                        overlay_edge_width, overlay_edge_style)
+  mmd_str <- .mmd_build(adj_matrix, node_props, directed,
+                        adj_overlay, overlay_edge_style)
 
   # ── 4. Write files ─────────────────────────────────────────────────────────
   .write_if <- function(path, content, label) {

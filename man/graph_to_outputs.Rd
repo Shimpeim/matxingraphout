@@ -19,6 +19,10 @@ graph_to_outputs(
   default_stroke = "#333333",
   edge_colour = "#444444",
   edge_width = 1.5,
+  adj_overlay = NULL,
+  overlay_edge_colour = "#999999",
+  overlay_edge_width = 1,
+  overlay_edge_style = "dashed",
   layout = "manual",
   sunburst_max_depth = 3L,
   sunburst_min_branching = 3,
@@ -77,6 +81,20 @@ column is absent or \code{NA}).}
 \item{edge_colour}{Colour applied to all edges and arrowheads.}
 
 \item{edge_width}{Stroke width for edges in pixels.}
+
+\item{adj_overlay}{Optional square numeric matrix of the same dimensions as
+\code{adj_matrix}.  Non-zero entries add extra edges drawn on top of the
+structural edges but \strong{excluded from topology analysis}.  Useful for
+annotations, cross-links, or relationships that should not influence graph
+classification or automatic layout.  \code{NULL} (default) = no overlay.}
+
+\item{overlay_edge_colour}{Colour for overlay edges.  Default \code{"#999999"}.}
+
+\item{overlay_edge_width}{Stroke width for overlay edges in pixels.
+Default \code{1.0}.}
+
+\item{overlay_edge_style}{Line style for overlay edges: \code{"dashed"}
+(default) or \code{"solid"}.}
 
 \item{layout}{Node positioning mode:
 \describe{
