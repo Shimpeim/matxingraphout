@@ -152,7 +152,7 @@ test_that("NIHR graph is classified as a tree", {
   expect_equal(topo$type,      "tree")
   expect_true (topo$is_acyclic)
   expect_true (topo$is_tree)
-  expect_false(topo$is_forest)   # forest requires >1 root; NIHR has 1
+  expect_true (topo$is_forest)   # a tree is a connected forest (in_deg ≤ 1 for all)
   expect_true (topo$is_weakly_connected)
   expect_false(topo$is_strongly_connected)
   expect_equal(topo$n_nodes, 23L)
@@ -397,4 +397,54 @@ test_that("no files are written when all file args are NULL", {
                    svg_file = NULL, dot_file = NULL, mermaid_file = NULL)
   after <- list.files(tempdir())
   expect_equal(before, after)
+})
+
+# ── 11. edge_curvature ─────────────────────────────────────────────────────────
+
+test_that("edge_curvature='auto' with circular layout produces SVG arc paths", {
+  res <- graph_to_outputs(.adj_nihr, .nodes_nihr,
+                          layout = "circular",
+                          edge_curvature = "auto",
+                          svg_file = NULL, dot_file = NULL, mermaid_file = NULL)
+  # At least one arc path element should be present
+  expect_true(grepl("<path d=\"M ", res$svg, fixed = TRUE))
+  expect_true(grepl(" A ", res$svg, fixed = TRUE))
+})
+
+test_that("edge_curvature='straight' with circular layout produces only lines", {
+  res <- graph_to_outputs(.adj_nihr, .nodes_nihr,
+                          layout = "circular",
+                          edge_curvature = "straight",
+                          svg_file = NULL, dot_file = NULL, mermaid_file = NULL)
+  # Edges should be <line> elements, not arc paths
+  expect_true(grepl("<line ", res$svg, fixed = TRUE))
+  # Arc flag ' A ' should not appear in edge paths (self-loops use C, not A)
+  edge_section <- sub("<!-- nodes -->.*", "", res$svg)
+  expect_false(grepl(" A [0-9]", edge_section))
+})
+
+test_that("edge_curvature='auto' with sunburst layout produces SVG arc paths", {
+  res <- graph_to_outputs(.adj_nihr, .nodes_nihr,
+                          layout = "sunburst",
+                          edge_curvature = "auto",
+                          svg_file = NULL, dot_file = NULL, mermaid_file = NULL)
+  expect_true(grepl(" A ", res$svg, fixed = TRUE))
+})
+
+test_that("edge_curvature='auto' with manual layout produces straight lines", {
+  res <- graph_to_outputs(.adj2, .nodes2,
+                          layout = "manual",
+                          edge_curvature = "auto",
+                          svg_file = NULL, dot_file = NULL, mermaid_file = NULL)
+  # No radial centre is set for manual layout → straight lines only
+  edge_section <- sub("<!-- nodes -->.*", "", res$svg)
+  expect_false(grepl(" A [0-9]", edge_section))
+})
+
+test_that("edge_curvature rejects unknown values", {
+  expect_error(
+    graph_to_outputs(.adj2, .nodes2,
+                     edge_curvature = "curved",
+                     svg_file = NULL, dot_file = NULL, mermaid_file = NULL)
+  )
 })

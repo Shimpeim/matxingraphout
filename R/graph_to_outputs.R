@@ -83,6 +83,15 @@
 #'   `layout = "circular"`.  Both default to `circle_r + svg_padding +
 #'   max(default_width, default_height) / 2` so the full circle fits inside the
 #'   canvas with padding.
+#' @param edge_curvature Controls edge routing for radial layouts
+#'   (`"circular"` and `"sunburst"`):
+#'   \describe{
+#'     \item{`"auto"`}{(default) Uses circumscribed-circle arc routing when a
+#'       radial layout is active, so edges curve away from the layout centre
+#'       rather than cutting through it.  Falls back to straight lines when the
+#'       endpoints are collinear with the centre.}
+#'     \item{`"straight"`}{Always draws straight lines regardless of layout.}
+#'   }
 #'
 #' @return Invisibly: a named list with elements `svg`, `dot`, `mermaid`, and
 #'   `topology`.  The first three are character strings containing the full
@@ -169,7 +178,8 @@ graph_to_outputs <- function(
     sunburst_min_branching  = 3,
     circle_r                = NULL,
     circle_cx               = NULL,
-    circle_cy               = NULL
+    circle_cy               = NULL,
+    edge_curvature          = "auto"
 ) {
 
   # ── 0. Validate & normalise inputs ─────────────────────────────────────────
@@ -188,8 +198,9 @@ graph_to_outputs <- function(
       names(node_props)[names(node_props) == old] <- new
   }
 
-  layout <- match.arg(layout, c("manual", "auto", "sunburst", "tree",
-                                "bipartite", "circular"))
+  layout         <- match.arg(layout, c("manual", "auto", "sunburst", "tree",
+                                        "bipartite", "circular"))
+  edge_curvature <- match.arg(edge_curvature, c("auto", "straight"))
 
   # x/y are only required for manual layout; other layouts compute them
   req_xy       <- layout == "manual"
@@ -280,11 +291,25 @@ graph_to_outputs <- function(
                                     default_width, default_height, svg_padding)
   }
 
+  # Radial centre for circumscribed-circle arc routing
+  radial_center <- if (layout == "circular") {
+    c(circle_cx, circle_cy)
+  } else if (layout == "sunburst") {
+    # Root nodes are placed at radius 0, i.e. at the layout centre
+    roots <- which(colSums(adj_matrix != 0) == 0L)
+    if (length(roots)) c(node_props$x[roots[1L]], node_props$y[roots[1L]])
+    else NULL
+  } else {
+    NULL
+  }
+
   # ── 1–3. Build representations ─────────────────────────────────────────────
   svg_str <- .svg_build(adj_matrix, node_props, directed,
                         svg_padding, edge_colour, edge_width,
                         adj_overlay, overlay_edge_colour,
-                        overlay_edge_width, overlay_edge_style)
+                        overlay_edge_width, overlay_edge_style,
+                        radial_center = radial_center,
+                        edge_curvature = edge_curvature)
   dot_str <- .dot_build(adj_matrix, node_props, directed,
                         adj_overlay, overlay_edge_colour,
                         overlay_edge_width, overlay_edge_style)

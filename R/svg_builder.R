@@ -8,7 +8,8 @@
 #' @noRd
 .svg_build <- function(adj, np, directed, pad, ecol, ew,
                        adj_ov = NULL, ovcol = "#999999",
-                       ovw = 1.0, ovstyle = "dashed") {
+                       ovw = 1.0, ovstyle = "dashed",
+                       radial_center = NULL, edge_curvature = "auto") {
   n <- nrow(adj)
 
   # Canvas extents from node bounding boxes + padding
@@ -22,6 +23,11 @@
   # Shift node centres so the canvas starts at (0, 0)
   np$sx <- np$x - xlo
   np$sy <- np$y - ylo
+
+  # Shifted radial centre (used for circumscribed-circle arc routing)
+  use_arc <- !is.null(radial_center) && edge_curvature != "straight"
+  rc_sx   <- if (use_arc) radial_center[1] - xlo else 0
+  rc_sy   <- if (use_arc) radial_center[2] - ylo else 0
 
   buf <- character(0)
   .emit <- function(...) buf <<- c(buf, paste0(...))
@@ -84,9 +90,21 @@
           }
         }
 
-        .emit('  <line x1="', round(from[1], 1), '" y1="', round(from[2], 1),
-              '" x2="', round(to[1], 1), '" y2="', round(to[2], 1), '"',
-              mar_attr, ' ', edge_css, '/>')
+        arc <- if (use_arc) .circumcircle_arc_svg(
+          from[1] - rc_sx, from[2] - rc_sy,
+          to[1]   - rc_sx, to[2]   - rc_sy) else NULL
+
+        if (!is.null(arc)) {
+          .emit('  <path d="M ', round(from[1], 1), ',', round(from[2], 1),
+                ' A ', arc$R, ',', arc$R, ' 0 ',
+                arc$large_arc, ',', arc$sweep,
+                ' ', round(to[1], 1), ',', round(to[2], 1), '"',
+                mar_attr, ' ', edge_css, '/>')
+        } else {
+          .emit('  <line x1="', round(from[1], 1), '" y1="', round(from[2], 1),
+                '" x2="', round(to[1], 1), '" y2="', round(to[2], 1), '"',
+                mar_attr, ' ', edge_css, '/>')
+        }
 
         # Annotate non-binary edge weights
         if (v != 1) {
@@ -138,9 +156,21 @@
               to <- to - c(ux, uy) * 2
             }
           }
-          .emit('  <line x1="', round(from[1], 1), '" y1="', round(from[2], 1),
-                '" x2="', round(to[1], 1), '" y2="', round(to[2], 1), '"',
-                ov_mar, ' ', ov_css, '/>')
+          arc_ov <- if (use_arc) .circumcircle_arc_svg(
+            from[1] - rc_sx, from[2] - rc_sy,
+            to[1]   - rc_sx, to[2]   - rc_sy) else NULL
+
+          if (!is.null(arc_ov)) {
+            .emit('  <path d="M ', round(from[1], 1), ',', round(from[2], 1),
+                  ' A ', arc_ov$R, ',', arc_ov$R, ' 0 ',
+                  arc_ov$large_arc, ',', arc_ov$sweep,
+                  ' ', round(to[1], 1), ',', round(to[2], 1), '"',
+                  ov_mar, ' ', ov_css, '/>')
+          } else {
+            .emit('  <line x1="', round(from[1], 1), '" y1="', round(from[2], 1),
+                  '" x2="', round(to[1], 1), '" y2="', round(to[2], 1), '"',
+                  ov_mar, ' ', ov_css, '/>')
+          }
         }
         done_ov[i, j] <- TRUE
       }
@@ -258,4 +288,94 @@
   s <- gsub(">",  "&gt;",   s, fixed = TRUE)
   s <- gsub('"',  "&quot;", s, fixed = TRUE)
   s
+}
+
+
+# ── Circumscribed-circle arc helper ───────────────────────────────────────────
+
+#' SVG arc parameters for the circumscribed circle of O, P1, P2
+#'
+#' ## Geometric rationale
+#'
+#' In radial layouts (sunburst, circular) every edge connects two nodes that
+#' both lie on concentric circles around a common centre O.  A straight line
+#' between distant nodes cuts through the interior of the diagram and visually
+#' crosses the centre.  Routing each edge along the arc of the **circumscribed
+#' circle** of the triangle formed by O, P1, and P2 keeps the edge at a
+#' natural distance from O, producing curved lines that follow the radial
+#' structure of the layout.
+#'
+#' ## Circle-centre derivation
+#'
+#' The circumscribed circle passes through O = (0, 0), P1 = (x1, y1), and
+#' P2 = (x2, y2).  Its centre (cxc, cyc) satisfies three equal-distance
+#' constraints.  Setting |centre − O|² = |centre − P1|² and
+#' |centre − O|² = |centre − P2|² yields a 2×2 linear system whose solution
+#' (via Cramer's rule) is:
+#'
+#'   denom = 2 * (x1*y2 − y1*x2)           # twice the signed area of the triangle
+#'   cxc   = (y2*|P1|² − y1*|P2|²) / denom
+#'   cyc   = (x1*|P2|² − x2*|P1|²) / denom
+#'   R     = |centre − O| = sqrt(cxc² + cyc²)
+#'
+#' When `denom ≈ 0` the three points are collinear (no finite circle exists);
+#' the function returns `NULL` and the caller draws a straight line instead.
+#'
+#' ## Arc-flag selection
+#'
+#' The circumscribed circle has two arcs from P1 to P2: one passes through O,
+#' the other does not.  We always want the arc that avoids O.
+#'
+#' 1. Express the angles of P1, P2, and O on the circle as th1, th2, th0.
+#' 2. The clockwise arc from P1 to P2 spans `delta_cw = (th2 − th1) mod 2π`
+#'    radians.
+#' 3. O lies on the CW arc iff `(th0 − th1) mod 2π ≤ delta_cw`.
+#' 4. If O is on the CW arc, take the CCW arc (SVG sweep-flag = 0).
+#'    Otherwise take the CW arc (SVG sweep-flag = 1).
+#' 5. SVG large-arc-flag = 1 when the chosen arc spans more than π radians.
+#'
+#' @keywords internal
+#' @noRd
+.circumcircle_arc_svg <- function(x1, y1, x2, y2) {
+  # Circumscribed circle of triangle O=(0,0), P1, P2
+  # denom = 2 × signed area of the triangle; zero means collinear
+  denom <- 2 * (x1 * y2 - y1 * x2)
+  if (abs(denom) < 1e-9) return(NULL)   # collinear → straight line
+
+  r1sq <- x1^2 + y1^2
+  r2sq <- x2^2 + y2^2
+  # Circle centre via Cramer's rule (see derivation above)
+  cxc  <- (y2 * r1sq - y1 * r2sq) / denom
+  cyc  <- (x1 * r2sq - x2 * r1sq) / denom
+  R    <- sqrt(cxc^2 + cyc^2)   # radius = distance from centre to O
+
+  # Normalise angle to [0, 2π)
+  n2pi <- function(a) ((a %% (2 * pi)) + 2 * pi) %% (2 * pi)
+
+  th1 <- n2pi(atan2(y1 - cyc, x1 - cxc))   # angle of P1 on the circle
+  th2 <- n2pi(atan2(y2 - cyc, x2 - cxc))   # angle of P2
+  th0 <- n2pi(atan2(    -cyc,     -cxc))    # angle of O
+
+  # Clockwise arc from P1 to P2 spans delta_cw radians
+  delta_cw <- n2pi(th2 - th1)
+
+  # Does O lie on the CW arc P1→P2?
+  # O is on the CW arc iff its angular offset from P1 (going CW) ≤ delta_cw
+  cw_has_O <- n2pi(th0 - th1) <= delta_cw
+
+  if (cw_has_O) {
+    # Take the CCW arc to avoid O (SVG sweep-flag = 0 means CCW)
+    sweep <- 0L
+    span  <- 2 * pi - delta_cw
+  } else {
+    # Take the CW arc (SVG sweep-flag = 1 means CW)
+    sweep <- 1L
+    span  <- delta_cw
+  }
+
+  list(
+    R         = round(R, 2),
+    large_arc = if (span > pi) 1L else 0L,   # SVG large-arc-flag
+    sweep     = sweep
+  )
 }

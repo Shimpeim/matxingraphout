@@ -28,7 +28,8 @@ graph_to_outputs(
   sunburst_min_branching = 3,
   circle_r = NULL,
   circle_cx = NULL,
-  circle_cy = NULL
+  circle_cy = NULL,
+  edge_curvature = "auto"
 )
 }
 \arguments{
@@ -137,6 +138,20 @@ recommend \code{"sunburst"} over \code{"tree"}.  Default \code{3L}.}
 \code{layout = "circular"}.  Both default to
 \code{circle_r + svg_padding + max(default_width, default_height) / 2} so
 the full circle fits inside the canvas with padding.}
+
+\item{edge_curvature}{Controls edge routing for radial layouts
+(\code{"circular"} and \code{"sunburst"}):
+\describe{
+  \item{\code{"auto"}}{(default) Uses circumscribed-circle arc routing when a
+    radial layout is active.  For each edge P1→P2, the function finds the
+    unique circle that passes through the layout centre O, P1, and P2 (the
+    circumscribed circle of the triangle O–P1–P2), then draws the arc of
+    that circle from P1 to P2 that does \emph{not} pass through O.  This
+    keeps edges curving around the centre rather than cutting through it.
+    Falls back to a straight line when O, P1, P2 are collinear (no finite
+    circle exists).}
+  \item{\code{"straight"}}{Always draws straight lines regardless of layout.}
+}}
 }
 \value{
 Invisibly: a named list with elements \code{svg}, \code{dot},
