@@ -29,7 +29,8 @@ graph_to_outputs(
   circle_r = NULL,
   circle_cx = NULL,
   circle_cy = NULL,
-  edge_curvature = "auto"
+  edge_curvature = "auto",
+  overlay_edge_curvature = "auto"
 )
 }
 \arguments{
@@ -139,8 +140,9 @@ recommend \code{"sunburst"} over \code{"tree"}.  Default \code{3L}.}
 \code{circle_r + svg_padding + max(default_width, default_height) / 2} so
 the full circle fits inside the canvas with padding.}
 
-\item{edge_curvature}{Controls edge routing for radial layouts
-(\code{"circular"} and \code{"sunburst"}):
+\item{edge_curvature}{Controls arc routing for \strong{structural edges}
+(\code{adj_matrix}) in radial layouts (\code{"circular"} and
+\code{"sunburst"}):
 \describe{
   \item{\code{"auto"}}{(default) Uses circumscribed-circle arc routing when a
     radial layout is active.  For each edge P1→P2, the function finds the
@@ -152,6 +154,11 @@ the full circle fits inside the canvas with padding.}
     circle exists).}
   \item{\code{"straight"}}{Always draws straight lines regardless of layout.}
 }}
+
+\item{overlay_edge_curvature}{Controls arc routing for \strong{overlay edges}
+(\code{adj_overlay}) independently of \code{edge_curvature}.  Same values:
+\code{"auto"} (default) or \code{"straight"}.  Has no effect when
+\code{adj_overlay} is \code{NULL}.}
 }
 \value{
 Invisibly: a named list with elements \code{svg}, \code{dot},

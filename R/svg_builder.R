@@ -9,7 +9,9 @@
 .svg_build <- function(adj, np, directed, pad, ecol, ew,
                        adj_ov = NULL, ovcol = "#999999",
                        ovw = 1.0, ovstyle = "dashed",
-                       radial_center = NULL, edge_curvature = "auto") {
+                       radial_center = NULL,
+                       edge_curvature = "auto",
+                       overlay_edge_curvature = "auto") {
   n <- nrow(adj)
 
   # Canvas extents from node bounding boxes + padding
@@ -25,9 +27,12 @@
   np$sy <- np$y - ylo
 
   # Shifted radial centre (used for circumscribed-circle arc routing)
-  use_arc <- !is.null(radial_center) && edge_curvature != "straight"
-  rc_sx   <- if (use_arc) radial_center[1] - xlo else 0
-  rc_sy   <- if (use_arc) radial_center[2] - ylo else 0
+  # Independent flags for main edges and overlay edges
+  has_rc       <- !is.null(radial_center)
+  rc_sx        <- if (has_rc) radial_center[1] - xlo else 0
+  rc_sy        <- if (has_rc) radial_center[2] - ylo else 0
+  use_arc      <- has_rc && edge_curvature         != "straight"
+  use_arc_ov   <- has_rc && overlay_edge_curvature != "straight"
 
   buf <- character(0)
   .emit <- function(...) buf <<- c(buf, paste0(...))
@@ -156,7 +161,7 @@
               to <- to - c(ux, uy) * 2
             }
           }
-          arc_ov <- if (use_arc) .circumcircle_arc_svg(
+          arc_ov <- if (use_arc_ov) .circumcircle_arc_svg(
             from[1] - rc_sx, from[2] - rc_sy,
             to[1]   - rc_sx, to[2]   - rc_sy) else NULL
 

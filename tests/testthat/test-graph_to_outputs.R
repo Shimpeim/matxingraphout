@@ -448,3 +448,59 @@ test_that("edge_curvature rejects unknown values", {
                      svg_file = NULL, dot_file = NULL, mermaid_file = NULL)
   )
 })
+
+test_that("overlay_edge_curvature rejects unknown values", {
+  expect_error(
+    graph_to_outputs(.adj_nihr, .nodes_nihr,
+                     adj_overlay = .adj_ov,
+                     overlay_edge_curvature = "curved",
+                     svg_file = NULL, dot_file = NULL, mermaid_file = NULL)
+  )
+})
+
+# ── 12. Independent edge_curvature / overlay_edge_curvature ───────────────────
+
+# Helper: extract the SVG section between <!-- edges --> and <!-- overlay edges -->
+.svg_main_edges <- function(svg)
+  sub("(?s)<!-- overlay edges -->.*", "", sub("(?s).*<!-- edges -->", "", svg, perl = TRUE), perl = TRUE)
+
+# Helper: extract the SVG section between <!-- overlay edges --> and <!-- nodes -->
+.svg_ov_edges <- function(svg)
+  sub("(?s)<!-- nodes -->.*", "", sub("(?s).*<!-- overlay edges -->", "", svg, perl = TRUE), perl = TRUE)
+
+test_that("main edges arc, overlay edges straight", {
+  res <- graph_to_outputs(.adj_nihr, .nodes_nihr,
+                          layout = "sunburst",
+                          adj_overlay = .adj_ov,
+                          edge_curvature         = "auto",
+                          overlay_edge_curvature = "straight",
+                          svg_file = NULL, dot_file = NULL, mermaid_file = NULL)
+  # Main edges should contain SVG arc paths
+  expect_true(grepl(" A ", .svg_main_edges(res$svg), fixed = TRUE))
+  # Overlay section should not contain arc paths
+  expect_false(grepl(" A [0-9]", .svg_ov_edges(res$svg)))
+})
+
+test_that("main edges straight, overlay edges arc", {
+  res <- graph_to_outputs(.adj_nihr, .nodes_nihr,
+                          layout = "sunburst",
+                          adj_overlay = .adj_ov,
+                          edge_curvature         = "straight",
+                          overlay_edge_curvature = "auto",
+                          svg_file = NULL, dot_file = NULL, mermaid_file = NULL)
+  # Main edge section should contain only lines, no arcs
+  expect_false(grepl(" A [0-9]", .svg_main_edges(res$svg)))
+  # Overlay section should contain an arc path
+  expect_true(grepl(" A ", .svg_ov_edges(res$svg), fixed = TRUE))
+})
+
+test_that("both edges straight produces no arc paths", {
+  res <- graph_to_outputs(.adj_nihr, .nodes_nihr,
+                          layout = "sunburst",
+                          adj_overlay = .adj_ov,
+                          edge_curvature         = "straight",
+                          overlay_edge_curvature = "straight",
+                          svg_file = NULL, dot_file = NULL, mermaid_file = NULL)
+  edge_section <- sub("<!-- nodes -->.*", "", res$svg)
+  expect_false(grepl(" A [0-9]", edge_section))
+})

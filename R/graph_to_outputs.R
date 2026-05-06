@@ -83,8 +83,8 @@
 #'   `layout = "circular"`.  Both default to `circle_r + svg_padding +
 #'   max(default_width, default_height) / 2` so the full circle fits inside the
 #'   canvas with padding.
-#' @param edge_curvature Controls edge routing for radial layouts
-#'   (`"circular"` and `"sunburst"`):
+#' @param edge_curvature Controls arc routing for **structural edges**
+#'   (`adj_matrix`) in radial layouts (`"circular"` and `"sunburst"`):
 #'   \describe{
 #'     \item{`"auto"`}{(default) Uses circumscribed-circle arc routing when a
 #'       radial layout is active, so edges curve away from the layout centre
@@ -92,6 +92,10 @@
 #'       endpoints are collinear with the centre.}
 #'     \item{`"straight"`}{Always draws straight lines regardless of layout.}
 #'   }
+#' @param overlay_edge_curvature Controls arc routing for **overlay edges**
+#'   (`adj_overlay`) independently of `edge_curvature`.  Same values:
+#'   `"auto"` (default) or `"straight"`.  Has no effect when `adj_overlay` is
+#'   `NULL`.
 #'
 #' @return Invisibly: a named list with elements `svg`, `dot`, `mermaid`, and
 #'   `topology`.  The first three are character strings containing the full
@@ -179,7 +183,8 @@ graph_to_outputs <- function(
     circle_r                = NULL,
     circle_cx               = NULL,
     circle_cy               = NULL,
-    edge_curvature          = "auto"
+    edge_curvature          = "auto",
+    overlay_edge_curvature  = "auto"
 ) {
 
   # ── 0. Validate & normalise inputs ─────────────────────────────────────────
@@ -198,9 +203,10 @@ graph_to_outputs <- function(
       names(node_props)[names(node_props) == old] <- new
   }
 
-  layout         <- match.arg(layout, c("manual", "auto", "sunburst", "tree",
-                                        "bipartite", "circular"))
-  edge_curvature <- match.arg(edge_curvature, c("auto", "straight"))
+  layout                 <- match.arg(layout, c("manual", "auto", "sunburst",
+                                                "tree", "bipartite", "circular"))
+  edge_curvature         <- match.arg(edge_curvature,         c("auto", "straight"))
+  overlay_edge_curvature <- match.arg(overlay_edge_curvature, c("auto", "straight"))
 
   # x/y are only required for manual layout; other layouts compute them
   req_xy       <- layout == "manual"
@@ -308,8 +314,9 @@ graph_to_outputs <- function(
                         svg_padding, edge_colour, edge_width,
                         adj_overlay, overlay_edge_colour,
                         overlay_edge_width, overlay_edge_style,
-                        radial_center = radial_center,
-                        edge_curvature = edge_curvature)
+                        radial_center          = radial_center,
+                        edge_curvature         = edge_curvature,
+                        overlay_edge_curvature = overlay_edge_curvature)
   dot_str <- .dot_build(adj_matrix, node_props, directed,
                         adj_overlay, overlay_edge_colour,
                         overlay_edge_width, overlay_edge_style)
