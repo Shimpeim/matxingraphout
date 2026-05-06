@@ -41,7 +41,8 @@ weights and annotated on the edge.}
   \item{id}{Node identifier matching \code{rownames}/\code{colnames} of
     \code{adj_matrix}.}
   \item{x, y}{Centre coordinates in SVG pixel space (y increases downward).
-    Ignored when \code{layout} is not \code{"manual"}.}
+    \strong{Required only when} \code{layout = "manual"}; may be omitted when
+    any other layout mode is used.}
   \item{shape}{One of \code{"rect"}, \code{"rounded"}, \code{"circle"},
     \code{"ellipse"}, \code{"diamond"}.}
   \item{colour}{Fill colour as a hex string or R colour name (e.g.

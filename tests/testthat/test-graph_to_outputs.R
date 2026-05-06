@@ -292,7 +292,47 @@ test_that("SVG file is written to disk when svg_file is set", {
   expect_gt(file.size(tmp), 0)
 })
 
-# ── 9. Overlay matrix ────────────────────────────────────────────────────────
+# ── 9. node_props without x / y ──────────────────────────────────────────────
+
+.nodes_nihr_noxy <- .nodes_nihr[, setdiff(names(.nodes_nihr), c("x", "y"))]
+
+test_that("node_props without x/y is accepted for auto layout", {
+  expect_no_error(
+    graph_to_outputs(.adj_nihr, .nodes_nihr_noxy, layout = "auto",
+                     svg_file = NULL, dot_file = NULL, mermaid_file = NULL)
+  )
+})
+
+test_that("node_props without x/y is accepted for tree layout", {
+  expect_no_error(
+    graph_to_outputs(.adj_nihr, .nodes_nihr_noxy, layout = "tree",
+                     svg_file = NULL, dot_file = NULL, mermaid_file = NULL)
+  )
+})
+
+test_that("node_props without x/y is accepted for sunburst layout", {
+  expect_no_error(
+    graph_to_outputs(.adj_nihr, .nodes_nihr_noxy, layout = "sunburst",
+                     svg_file = NULL, dot_file = NULL, mermaid_file = NULL)
+  )
+})
+
+test_that("node_props without x/y is accepted for circular layout", {
+  expect_no_error(
+    graph_to_outputs(.adj_nihr, .nodes_nihr_noxy, layout = "circular",
+                     svg_file = NULL, dot_file = NULL, mermaid_file = NULL)
+  )
+})
+
+test_that("node_props without x/y raises an error for manual layout", {
+  expect_error(
+    graph_to_outputs(.adj_nihr, .nodes_nihr_noxy, layout = "manual",
+                     svg_file = NULL, dot_file = NULL, mermaid_file = NULL),
+    "missing column"
+  )
+})
+
+# ── 10. Overlay matrix ────────────────────────────────────────────────────────
 
 # Overlay: add a cross-link N7 → N21 (not in structural matrix)
 .adj_ov <- matrix(0L, .n, .n, dimnames = list(.node_ids, .node_ids))
@@ -330,7 +370,7 @@ test_that("overlay edge appears in Mermaid output as dashed arrow", {
   res <- graph_to_outputs(.adj_nihr, .nodes_nihr,
                           adj_overlay = .adj_ov,
                           svg_file = NULL, dot_file = NULL, mermaid_file = NULL)
-  expect_true(grepl("Overlay edges", res$mermaid, fixed = TRUE))
+  expect_true(grepl("Overlay edges", res$mermaid, fixed = TRUE))  # section renamed to 10
   expect_true(grepl("-.->",          res$mermaid, fixed = TRUE))
 })
 

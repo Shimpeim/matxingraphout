@@ -10,7 +10,9 @@
 #' @param node_props `data.frame` with the following columns:
 #'   \describe{
 #'     \item{id}{Node identifier matching `rownames`/`colnames` of `adj_matrix`.}
-#'     \item{x,y}{Centre coordinates in SVG pixel space (y increases downward).}
+#'     \item{x,y}{Centre coordinates in SVG pixel space (y increases downward).
+#'       \emph{Required only when} `layout = "manual"`; omit freely when using
+#'       any other layout mode.}
 #'     \item{shape}{One of `"rect"`, `"rounded"`, `"circle"`, `"ellipse"`,
 #'       `"diamond"`.}
 #'     \item{colour}{Fill colour as a hex string or R colour name (e.g.
@@ -186,10 +188,19 @@ graph_to_outputs <- function(
       names(node_props)[names(node_props) == old] <- new
   }
 
-  missing_cols <- setdiff(c("id", "x", "y", "shape", "colour", "label"),
-                          names(node_props))
+  layout <- match.arg(layout, c("manual", "auto", "sunburst", "tree",
+                                "bipartite", "circular"))
+
+  # x/y are only required for manual layout; other layouts compute them
+  req_xy       <- layout == "manual"
+  required_cols <- c("id", if (req_xy) c("x", "y"), "shape", "colour", "label")
+  missing_cols  <- setdiff(required_cols, names(node_props))
   if (length(missing_cols))
     stop("node_props missing column(s): ", paste(missing_cols, collapse = ", "))
+
+  # Add placeholder x/y so downstream code always finds them
+  if (!"x" %in% names(node_props)) node_props$x <- 0
+  if (!"y" %in% names(node_props)) node_props$y <- 0
 
   node_props$id <- as.character(node_props$id)
 
@@ -244,7 +255,6 @@ graph_to_outputs <- function(
   message("Recommended layout: ", topo$recommended_layout)
 
   # ── 0c. Layout (overrides x / y for non-manual modes) ──────────────────────
-  layout <- match.arg(layout, c("manual", "auto", "sunburst", "tree", "bipartite", "circular"))
   if (layout == "auto") {
     layout <- topo$recommended_layout
     message("Auto layout selected: '", layout, "'")
