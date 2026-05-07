@@ -17,6 +17,8 @@ No external package dependencies except for
     shiny (>= 1.7.0),
     DT (>= 0.28).
 
+The graphics helpers were developped with Sonnet 4.6 on Claude Code v.2.1.84. 
+
 ## Installation
 
 You can install the development version of matxingraphout like so:
