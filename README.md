@@ -24,7 +24,11 @@ The graphics helpers were developped with Sonnet 4.6 on Claude Code v.2.1.84.
 You can install the development version of matxingraphout like so:
 
 ``` r
-# FILL THIS IN! HOW CAN PEOPLE INSTALL YOUR DEV PACKAGE?
+remotes::install_github("Shimpeim/matxingraphout", force = TRUE)
+require(matxingraphout)
+
+# And then, open Shiny app
+run_app()
 ```
 
 ## Example
