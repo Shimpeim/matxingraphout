@@ -40,25 +40,23 @@ weights and annotated on the edge.}
 
 \item{node_props}{\code{data.frame} with the following columns:
 \describe{
-  \item{id}{Node identifier matching \code{rownames}/\code{colnames} of
-    \code{adj_matrix}.}
-  \item{x, y}{Centre coordinates in SVG pixel space (y increases downward).
-    \strong{Required only when} \code{layout = "manual"}; may be omitted when
-    any other layout mode is used.}
-  \item{shape}{One of \code{"rect"}, \code{"rounded"}, \code{"circle"},
-    \code{"ellipse"}, \code{"diamond"}.}
-  \item{colour}{Fill colour as a hex string or R colour name (e.g.
-    \code{"#e8f0fe"}).  Also accepted as \code{"color"}.}
-  \item{label}{Display text.  Use \code{"\\n"} for multi-line labels.}
-  \item{width, height}{\emph{(optional)} Node size in pixels.}
-  \item{fontsize}{\emph{(optional)} Label font size in pixels.}
-  \item{fontcolour}{\emph{(optional)} Label text colour.
-    Also accepted as \code{"fontcolor"}.}
-  \item{stroke}{\emph{(optional)} Node border colour.}
+\item{id}{Node identifier matching \code{rownames}/\code{colnames} of \code{adj_matrix}.}
+\item{x,y}{Centre coordinates in SVG pixel space (y increases downward).
+\emph{Required only when} \code{layout = "manual"}; omit freely when using
+any other layout mode.}
+\item{shape}{One of \code{"rect"}, \code{"rounded"}, \code{"circle"}, \code{"ellipse"},
+\code{"diamond"}.}
+\item{colour}{Fill colour as a hex string or R colour name (e.g.
+\code{"#e8f0fe"}).  Also accepted as \code{"color"}.}
+\item{label}{Display text.  Use \code{"\\n"} for multi-line labels.}
+\item{width,height}{\emph{(optional)} Node size in pixels.}
+\item{fontsize}{\emph{(optional)} Label font size in pixels.}
+\item{fontcolour}{\emph{(optional)} Label text colour. Also \code{"fontcolor"}.}
+\item{stroke}{\emph{(optional)} Node border colour.}
 }}
 
-\item{directed}{Logical. \code{TRUE} (default) produces a directed graph
-with arrowheads.}
+\item{directed}{Logical. \code{TRUE} (default) produces a directed graph with
+arrowheads.}
 
 \item{svg_file}{Output path for the SVG file.  \code{NULL} = do not write.}
 
@@ -70,8 +68,8 @@ with arrowheads.}
 \item{svg_padding}{Extra whitespace (px) added around the content when
 computing the SVG canvas size.}
 
-\item{default_width}{Default node width in pixels (used when \code{width}
-column is absent or \code{NA}).}
+\item{default_width}{Default node width in pixels (used when \code{width} column
+is absent or \code{NA}).}
 
 \item{default_height}{Default node height in pixels.}
 
@@ -88,120 +86,111 @@ column is absent or \code{NA}).}
 \item{adj_overlay}{Optional square numeric matrix of the same dimensions as
 \code{adj_matrix}.  Non-zero entries add extra edges drawn on top of the
 structural edges but \strong{excluded from topology analysis}.  Useful for
-annotations, cross-links, or relationships that should not influence graph
-classification or automatic layout.  \code{NULL} (default) = no overlay.}
+annotations, cross-links, or relationships that should not influence the
+graph classification or automatic layout.  \code{NULL} (default) = no overlay.}
 
 \item{overlay_edge_colour}{Colour for overlay edges.  Default \code{"#999999"}.}
 
 \item{overlay_edge_width}{Stroke width for overlay edges in pixels.
 Default \code{1.0}.}
 
-\item{overlay_edge_style}{Line style for overlay edges: \code{"dashed"}
-(default) or \code{"solid"}.}
+\item{overlay_edge_style}{Line style for overlay edges: \code{"dashed"} (default)
+or \code{"solid"}.}
 
 \item{layout}{Node positioning mode:
 \describe{
-  \item{\code{"manual"}}{(default) Uses the \code{x}/\code{y} columns of
-    \code{node_props} as supplied.}
-  \item{\code{"auto"}}{Chooses the best layout from the topological
-    analysis: \code{"sunburst"} for shallow DAGs with high branching
-    (governed by \code{sunburst_max_depth} and
-    \code{sunburst_min_branching}), \code{"tree"} for other acyclic graphs,
-    \code{"bipartite"} for non-acyclic bipartite graphs, \code{"circular"}
-    otherwise.  The chosen name is reported in a console message and stored
-    in \code{result$topology$recommended_layout}.}
-  \item{\code{"sunburst"}}{Radial hierarchical layout.  Root(s) at the
-    centre; each successive rank on a larger concentric circle; angular span
-    proportional to subtree leaf count.}
-  \item{\code{"tree"}}{Hierarchical top-down layout.  Ranks nodes by
-    longest path from root(s); orders siblings by barycenter of parent
-    positions.  Suitable for trees, forests, and DAGs.}
-  \item{\code{"bipartite"}}{Two-column layout: one partition on the left,
-    the other on the right.}
-  \item{\code{"circular"}}{Equal angular intervals around a circle, starting
-    at the top (12 o'clock) proceeding clockwise.  Suitable for cyclic or
-    densely connected graphs.}
+\item{\code{"manual"}}{(default) Uses the \code{x}/\code{y} columns of \code{node_props}
+as supplied.}
+\item{\code{"auto"}}{Chooses the best layout from the topological analysis:
+\code{"tree"} for acyclic graphs, \code{"bipartite"} for non-acyclic bipartite
+graphs, \code{"circular"} otherwise.  The chosen name is reported in a
+console message and stored in \code{result$topology$recommended_layout}.}
+\item{\code{"tree"}}{Hierarchical top-down layout.  Ranks nodes by longest
+path from root(s); orders siblings by barycenter of parent positions.
+Suitable for trees, forests, and DAGs.}
+\item{\code{"bipartite"}}{Two-column layout: one partition on the left,
+the other on the right.  Suitable for bipartite graphs.}
+\item{\code{"sunburst"}}{Radial hierarchical layout.  Root(s) at the centre;
+each successive rank placed on a larger concentric circle; angular
+span of each node is proportional to its subtree leaf count.
+Recommended automatically for shallow DAGs with high branching
+(see \code{sunburst_max_depth} and \code{sunburst_min_branching}).}
+\item{\code{"circular"}}{Equal angular intervals around a circle, starting
+at the top (12 o'clock) proceeding clockwise.  Suitable for cyclic
+or densely connected graphs.}
 }}
 
 \item{sunburst_max_depth}{Integer. Maximum DAG depth for \code{"auto"} to
-recommend \code{"sunburst"} over \code{"tree"}.  Default \code{3L}.}
+recommend \code{"sunburst"} over \code{"tree"}.  Default \code{3}.}
 
 \item{sunburst_min_branching}{Numeric. Minimum average branching factor
-(mean out-degree of non-leaf nodes) for \code{"auto"} to recommend
-\code{"sunburst"}.  Default \code{3}.}
+(mean out-degree of non-leaf nodes) for \code{"auto"} to recommend \code{"sunburst"}.
+Default \code{3}.}
 
-\item{circle_r}{Radius of the circle in pixels when
-\code{layout = "circular"}.  \code{NULL} (default) auto-sizes to
-\code{node_spacing * n / (2 * pi)} where
+\item{circle_r}{Radius of the circle in pixels when \code{layout = "circular"}.
+\code{NULL} (default) auto-sizes to \code{node_spacing * n / (2 * pi)} where
 \code{node_spacing = max(default_width, default_height) * 1.5}.}
 
 \item{circle_cx, circle_cy}{Centre of the circle in SVG pixel space when
-\code{layout = "circular"}.  Both default to
-\code{circle_r + svg_padding + max(default_width, default_height) / 2} so
-the full circle fits inside the canvas with padding.}
+\code{layout = "circular"}.  Both default to \code{circle_r + svg_padding + max(default_width, default_height) / 2} so the full circle fits inside the
+canvas with padding.}
 
 \item{edge_curvature}{Controls arc routing for \strong{structural edges}
 (\code{adj_matrix}).  Works for any layout mode:
 \describe{
-  \item{\code{"auto"}}{(default) Draws each edge as the arc of the
-    circumscribed circle of O–P1–P2 that avoids O, where O is the position
-    of the node with the highest eigenvector centrality score (power
-    iteration on the symmetrised adjacency matrix, up to 200 iterations).
-    This single global origin gives curvature anchored at the structural
-    centre of the graph.  Falls back to a straight line when the three
-    points are collinear (no finite circle exists).}
-  \item{\code{"straight"}}{Always draws straight lines.}
+\item{\code{"auto"}}{(default) Draws each edge as the arc of the
+circumscribed circle of O–P1–P2 that avoids O, where O is the
+position of the node with the highest eigenvector centrality score
+(power-iteration on the symmetrised adjacency matrix).  This single
+global origin gives curvature that follows the structural centre of
+the graph.  Falls back to a straight line when the three points are
+collinear (no finite circle exists).}
+\item{\code{"straight"}}{Always draws straight lines.}
 }}
 
 \item{overlay_edge_curvature}{Controls arc routing for \strong{overlay edges}
 (\code{adj_overlay}) independently of \code{edge_curvature}.  Same values:
-\code{"auto"} (default) or \code{"straight"}.  Has no effect when
-\code{adj_overlay} is \code{NULL}.}
+\code{"auto"} (default) or \code{"straight"}.  Has no effect when \code{adj_overlay} is
+\code{NULL}.}
 }
 \value{
-Invisibly: a named list with elements \code{svg}, \code{dot},
-\code{mermaid}, and \code{topology}.  The first three are character strings
-containing the full source of each format.  \code{topology} is a named list
-with elements:
+Invisibly: a named list with elements \code{svg}, \code{dot}, \code{mermaid}, and
+\code{topology}.  The first three are character strings containing the full
+source of each format.  \code{topology} is itself a named list with elements:
 \describe{
-  \item{type}{Character. Graph classification: one of \code{"tree"},
-    \code{"forest (multiple trees)"}, \code{"DAG — hierarchical"},
-    \code{"DAG — disconnected"}, \code{"strongly connected (cyclic)"},
-    \code{"weakly connected (cyclic)"}, \code{"disconnected (cyclic)"}.}
-  \item{recommended_layout}{Character. The layout \code{"auto"} would
-    choose: \code{"sunburst"}, \code{"tree"}, \code{"bipartite"}, or
-    \code{"circular"}.}
-  \item{max_depth}{Integer. Longest directed path from any root node.
-    \code{NA} for cyclic graphs.}
-  \item{avg_branching_factor}{Numeric. Mean out-degree of non-leaf nodes.
-    \code{NA} if all nodes are leaves.}
-  \item{n_nodes, n_edges}{Integer counts of nodes and edges.}
-  \item{density}{Numeric. Edge density: \code{n_edges / (n * (n - 1))}.}
-  \item{is_acyclic}{Logical. \code{TRUE} if the graph contains no directed
-    cycle.}
-  \item{is_weakly_connected}{Logical. \code{TRUE} if the underlying
-    undirected graph is connected.}
-  \item{is_strongly_connected}{Logical. \code{TRUE} if every node is
-    reachable from every other following directed edges.}
-  \item{is_bipartite}{Logical. \code{TRUE} if nodes can be 2-coloured such
-    that no edge connects two same-colour nodes.}
-  \item{is_tree}{Logical. \code{TRUE} when the graph is a DAG, weakly
-    connected, has a single root, and every non-root has in-degree 1.}
-  \item{is_forest}{Logical. \code{TRUE} when the graph is a DAG and every
-    node has in-degree \eqn{\le 1}.}
-  \item{n_strongly_connected_components}{Integer. Number of SCCs
-    (Kosaraju's algorithm).}
-  \item{root_nodes}{Character vector of node IDs with in-degree 0.}
-  \item{leaf_nodes}{Character vector of node IDs with out-degree 0.}
-  \item{in_degree, out_degree}{Named integer vectors, one entry per node.}
+\item{type}{Character. One of \code{"tree"}, \code{"forest (multiple trees)"},
+\code{"DAG — hierarchical"}, \code{"DAG — disconnected"},
+\code{"strongly connected (cyclic)"}, \code{"weakly connected (cyclic)"},
+\code{"disconnected (cyclic)"}.}
+\item{recommended_layout}{Character. The layout that \code{"auto"} would
+choose: \code{"sunburst"}, \code{"tree"}, \code{"bipartite"}, or \code{"circular"}.}
+\item{max_depth}{Integer. Longest directed path from any root.
+\code{NA} for cyclic graphs.}
+\item{avg_branching_factor}{Numeric. Mean out-degree of non-leaf nodes.
+\code{NA} if all nodes are leaves.}
+\item{n_nodes, n_edges}{Integer counts.}
+\item{density}{Edge density: \code{n_edges / (n * (n - 1))}.}
+\item{is_acyclic}{Logical. \code{TRUE} if the graph contains no directed cycle.}
+\item{is_weakly_connected}{Logical. \code{TRUE} if the underlying undirected
+graph is connected.}
+\item{is_strongly_connected}{Logical. \code{TRUE} if every node is reachable
+from every other node following directed edges.}
+\item{is_bipartite}{Logical. \code{TRUE} if nodes can be 2-coloured such that
+no edge connects two nodes of the same colour.}
+\item{is_tree}{Logical. DAG + weakly connected + single root +
+every non-root has in-degree 1.}
+\item{is_forest}{Logical. DAG + every node has in-degree ≤ 1.}
+\item{n_strongly_connected_components}{Integer. Number of SCCs
+(Kosaraju's algorithm).}
+\item{root_nodes}{Character vector of node IDs with in-degree 0.}
+\item{leaf_nodes}{Character vector of node IDs with out-degree 0.}
+\item{in_degree, out_degree}{Named integer vectors, one value per node.}
 }
 }
 \description{
 Takes a square adjacency matrix and a node-property table and writes (or
 returns) three graph representations: a rendered SVG file, Graphviz DOT
-source, and Mermaid flowchart source.  A topological analysis of the graph
-structure is performed automatically and included in the return value.
-No external package dependencies.
+source, and Mermaid flowchart source.  No external package dependencies.
 }
 \examples{
 ids <- c("A", "B", "C")
@@ -221,8 +210,6 @@ nodes <- data.frame(
   label  = ids,
   stringsAsFactors = FALSE
 )
-
-# Manual layout
 result <- graph_to_outputs(
   adj_matrix   = adj,
   node_props   = nodes,
@@ -232,27 +219,4 @@ result <- graph_to_outputs(
 )
 cat(result$mermaid)
 
-# Automatic layout selection
-result2 <- graph_to_outputs(
-  adj_matrix   = adj,
-  node_props   = nodes,
-  layout       = "auto",
-  svg_file     = NULL,
-  dot_file     = NULL,
-  mermaid_file = NULL
-)
-result2$topology$type
-result2$topology$recommended_layout
-
-# Adjust sunburst thresholds
-result3 <- graph_to_outputs(
-  adj_matrix             = adj,
-  node_props             = nodes,
-  layout                 = "auto",
-  sunburst_max_depth     = 5L,
-  sunburst_min_branching = 2,
-  svg_file               = NULL,
-  dot_file               = NULL,
-  mermaid_file           = NULL
-)
 }
