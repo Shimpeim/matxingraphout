@@ -9,6 +9,7 @@ graph_to_outputs(
   node_props,
   directed = TRUE,
   svg_file = "graph.svg",
+  clean_svg_file = "graph_clean.svg",
   dot_file = "graph.dot",
   mermaid_file = "graph.mmd",
   svg_padding = 40,
@@ -61,6 +62,10 @@ any other layout mode.}
 arrowheads.}
 
 \item{svg_file}{Output path for the SVG file.  \code{NULL} = do not write.}
+
+\item{clean_svg_file}{Character. Path for a second SVG output identical to
+the main SVG but with centroid markers at 0 percent opacity.  Set to
+\code{NULL} to suppress this output.}
 
 \item{dot_file}{Output path for the DOT file.  \code{NULL} = do not write.}
 
@@ -174,8 +179,8 @@ non-\code{NULL}, centroid markers (crosshair circles) are drawn on the SVG to
 show their positions.  Set to \code{FALSE} to suppress markers.}
 }
 \value{
-Invisibly: a named list with elements \code{svg}, \code{dot}, \code{mermaid}, and
-\code{topology}.  The first three are character strings containing the full
+Invisibly: a named list with elements \code{svg}, \code{dot}, \code{mermaid},
+\code{clean_svg}, and \code{topology}.  The first three are character strings containing the full
 source of each format.  \code{topology} is itself a named list with elements:
 \describe{
 \item{type}{Character. One of \code{"tree"}, \code{"forest (multiple trees)"},

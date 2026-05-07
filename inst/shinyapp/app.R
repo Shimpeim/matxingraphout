@@ -483,6 +483,7 @@ document.addEventListener('DOMContentLoaded', function() {
             br(),
             tags$div(class = "dl-row", style = "align-items:center; flex-wrap:wrap; gap:6px;",
               downloadButton("dl_svg", "Download SVG", class = "btn-sm btn-default"),
+              downloadButton("dl_svg_clean", "Download SVG (no centroids)", class = "btn-sm btn-default"),
               tags$button(id = "btn-add-centroid",    class = "btn btn-sm btn-default",
                           title = "Click on the graph to place a centroid",
                           HTML("&#10010;&nbsp;Place centroid")),
@@ -919,6 +920,18 @@ server <- function(input, output, session) {
   output$dl_svg <- downloadHandler(
     filename = "graph.svg",
     content  = function(f) { req(rv$result); writeLines(rv$result$svg,     f) }
+  )
+  output$dl_svg_clean <- downloadHandler(
+    filename = "graph_clean.svg",
+    content  = function(f) {
+      req(rv$result)
+      clean_svg <- gsub(
+        '<g class="centroid-marker"',
+        '<g class="centroid-marker" opacity="0"',
+        rv$result$svg, fixed = TRUE
+      )
+      writeLines(clean_svg, f)
+    }
   )
   output$dl_dot <- downloadHandler(
     filename = "graph.dot",

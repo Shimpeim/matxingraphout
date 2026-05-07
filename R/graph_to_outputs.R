@@ -26,6 +26,9 @@
 #' @param directed Logical. `TRUE` (default) produces a directed graph with
 #'   arrowheads.
 #' @param svg_file Output path for the SVG file.  `NULL` = do not write.
+#' @param clean_svg_file Character. Path for a second SVG output identical to
+#'   the main SVG but with centroid markers at 0 percent opacity.  Set to
+#'   `NULL` to suppress this output.
 #' @param dot_file Output path for the DOT file.  `NULL` = do not write.
 #' @param mermaid_file Output path for the Mermaid `.mmd` file.
 #'   `NULL` = do not write.
@@ -116,8 +119,8 @@
 #'   non-`NULL`, centroid markers (crosshair circles) are drawn on the SVG to
 #'   show their positions.  Set to `FALSE` to suppress markers.
 #'
-#' @return Invisibly: a named list with elements `svg`, `dot`, `mermaid`, and
-#'   `topology`.  The first three are character strings containing the full
+#' @return Invisibly: a named list with elements `svg`, `dot`, `mermaid`,
+#'   `clean_svg`, and `topology`.  The first three are character strings containing the full
 #'   source of each format.  `topology` is itself a named list with elements:
 #'   \describe{
 #'     \item{type}{Character. One of `"tree"`, `"forest (multiple trees)"`,
@@ -182,6 +185,7 @@ graph_to_outputs <- function(
     node_props,
     directed           = TRUE,
     svg_file           = "graph.svg",
+    clean_svg_file     = "graph_clean.svg",
     dot_file           = "graph.dot",
     mermaid_file       = "graph.mmd",
     svg_padding        = 40,
@@ -378,7 +382,18 @@ graph_to_outputs <- function(
   .write_if(dot_file,     dot_str, "DOT")
   .write_if(mermaid_file, mmd_str, "Mermaid")
 
+  # write clean SVG (centroid markers at 0% opacity)
+  clean_svg <- gsub(
+    '<g class="centroid-marker"',
+    '<g class="centroid-marker" opacity="0"',
+    svg_str, fixed = TRUE
+  )
+  if (!is.null(clean_svg_file) && nzchar(clean_svg_file)) {
+    writeLines(clean_svg, con = clean_svg_file)
+  }
+
   invisible(list(svg = svg_str, dot = dot_str, mermaid = mmd_str,
+                 clean_svg = clean_svg,
                  topology = topo,
                  canvas   = list(xlo = canvas_xlo, ylo = canvas_ylo)))
 }

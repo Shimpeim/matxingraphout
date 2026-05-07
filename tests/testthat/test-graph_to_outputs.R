@@ -100,7 +100,7 @@ test_that("returns a list with svg, dot, mermaid, topology", {
   res <- graph_to_outputs(.adj2, .nodes2,
                           svg_file = NULL, dot_file = NULL, mermaid_file = NULL)
   expect_type(res, "list")
-  expect_named(res, c("svg", "dot", "mermaid", "topology", "canvas"))
+  expect_named(res, c("svg", "dot", "mermaid", "clean_svg", "topology", "canvas"))
 })
 
 test_that("svg, dot, mermaid elements are non-empty character strings", {
