@@ -80,12 +80,269 @@ body { background:#f0f2f5; font-family:-apple-system,BlinkMacSystemFont,'Segoe U
 label       { font-size:12px !important; font-weight:500 !important; color:#4a5568 !important; }
 .form-control { font-size:13px !important; }
 .shiny-input-container { margin-bottom:8px; }
+.mode-active { background:#c53030 !important; border-color:#9b2c2c !important; color:white !important; }
+#coord-display { font-size:11px; color:#718096; font-family:monospace; min-width:220px; padding:2px 0; }
+.ruler-x-row { display:flex; flex-direction:row; }
+.ruler-corner { width:30px; height:30px; flex-shrink:0; background:#edf2f7;
+                border-right:1px solid #cbd5e0; border-bottom:1px solid #cbd5e0; }
+#ruler-x { flex:1; display:block; }
+.ruler-svg-row { display:flex; flex-direction:row; }
+#ruler-y { flex-shrink:0; width:30px; display:block; }
+#svg-inner { flex:1; background:#f7fafc; border:1px solid #e2e8f0;
+             border-left:none; border-radius:0 6px 6px 6px;
+             min-height:280px; overflow:auto; text-align:center; padding:12px; }
 "
 
 # ── UI ────────────────────────────────────────────────────────────────────────
 
 ui <- fluidPage(
-  tags$head(tags$style(APP_CSS)),
+  tags$head(
+    tags$style(APP_CSS),
+    tags$script(HTML("
+(function(){'use strict';
+
+var mode = null;
+var xlo = 0, ylo = 0;
+
+Shiny.addCustomMessageHandler('canvas_offset', function(msg) {
+  xlo = msg.xlo;
+  ylo = msg.ylo;
+  updateRulers();
+  setTimeout(function(){ reattach(); }, 60);
+});
+
+$(document).on('click', '#btn-add-centroid', function() {
+  if (mode === 'add') {
+    mode = null;
+    $(this).removeClass('mode-active');
+  } else {
+    mode = 'add';
+    $(this).addClass('mode-active');
+    $('#btn-remove-centroid').removeClass('mode-active');
+  }
+});
+
+$(document).on('click', '#btn-remove-centroid', function() {
+  if (mode === 'remove') {
+    mode = null;
+    $(this).removeClass('mode-active');
+  } else {
+    mode = 'remove';
+    $(this).addClass('mode-active');
+    $('#btn-add-centroid').removeClass('mode-active');
+  }
+});
+
+function getSvg() {
+  var inner = document.getElementById('svg-inner');
+  if (!inner) return null;
+  return inner.querySelector('svg');
+}
+
+function svgPos(e, svg) {
+  var r   = svg.getBoundingClientRect();
+  var vb  = svg.viewBox.baseVal;
+  var scaleX = vb.width  / r.width;
+  var scaleY = vb.height / r.height;
+  var cx = (e.clientX - r.left)  * scaleX;
+  var cy = (e.clientY - r.top)   * scaleY;
+  return { cx: cx, cy: cy };
+}
+
+function toOrig(cx, cy) {
+  return { x: Math.round(cx + xlo), y: Math.round(cy + ylo) };
+}
+
+function reattach() {
+  var svg = getSvg();
+  if (!svg) return;
+
+  svg.onmousemove = function(e) {
+    var pos  = svgPos(e, svg);
+    var orig = toOrig(pos.cx, pos.cy);
+    var el   = document.getElementById('coord-display');
+    if (el) el.textContent = 'x = ' + orig.x + '   y = ' + orig.y;
+  };
+
+  svg.onmouseleave = function() {
+    var el = document.getElementById('coord-display');
+    if (el) el.textContent = 'Hover over the graph for coordinates';
+  };
+
+  svg.onclick = function(e) {
+    if (mode === 'add') {
+      var pos  = svgPos(e, svg);
+      var orig = toOrig(pos.cx, pos.cy);
+      Shiny.setInputValue('centroid_click', { x: orig.x, y: orig.y }, { priority: 'event' });
+      drawTempMarker(svg, pos.cx, pos.cy);
+    }
+  };
+
+  svg.querySelectorAll('g[data-centroid-idx]').forEach(function(g) {
+    g.style.cursor = (mode === 'remove') ? 'pointer' : 'default';
+    g.onclick = function(e) {
+      if (mode === 'remove') {
+        var idx = parseInt(g.getAttribute('data-centroid-idx'), 10);
+        Shiny.setInputValue('centroid_remove_idx', idx, { priority: 'event' });
+        g.parentNode.removeChild(g);
+        e.stopPropagation();
+      }
+    };
+  });
+}
+
+function drawTempMarker(svg, cx, cy) {
+  var ns = 'http://www.w3.org/2000/svg';
+  var g  = document.createElementNS(ns, 'g');
+  g.setAttribute('class', 'temp-centroid-marker');
+
+  var circle = document.createElementNS(ns, 'circle');
+  circle.setAttribute('cx', cx);
+  circle.setAttribute('cy', cy);
+  circle.setAttribute('r',  '9');
+  circle.setAttribute('fill', '#e53e3e');
+  circle.setAttribute('fill-opacity', '0.25');
+  circle.setAttribute('stroke', '#e53e3e');
+  circle.setAttribute('stroke-width', '1.5');
+  g.appendChild(circle);
+
+  var lh = document.createElementNS(ns, 'line');
+  lh.setAttribute('x1', cx - 12);
+  lh.setAttribute('y1', cy);
+  lh.setAttribute('x2', cx + 12);
+  lh.setAttribute('y2', cy);
+  lh.setAttribute('stroke', '#e53e3e');
+  lh.setAttribute('stroke-width', '1.5');
+  g.appendChild(lh);
+
+  var lv = document.createElementNS(ns, 'line');
+  lv.setAttribute('x1', cx);
+  lv.setAttribute('y1', cy - 12);
+  lv.setAttribute('x2', cx);
+  lv.setAttribute('y2', cy + 12);
+  lv.setAttribute('stroke', '#e53e3e');
+  lv.setAttribute('stroke-width', '1.5');
+  g.appendChild(lv);
+
+  svg.appendChild(g);
+}
+
+function niceStep(range, maxTicks) {
+  var rough = range / maxTicks;
+  var mag   = Math.pow(10, Math.floor(Math.log10(rough)));
+  var steps = [1, 2, 5, 10];
+  for (var i = 0; i < steps.length; i++) {
+    if (steps[i] * mag >= rough) return steps[i] * mag;
+  }
+  return steps[steps.length - 1] * mag;
+}
+
+function updateRulers() {
+  var svg = getSvg();
+  if (!svg) return;
+  var r   = svg.getBoundingClientRect();
+  var vb  = svg.viewBox.baseVal;
+  var dpr = window.devicePixelRatio || 1;
+
+  // X ruler
+  var cx = document.getElementById('ruler-x');
+  if (cx) {
+    cx.style.width  = r.width + 'px';
+    cx.style.height = '30px';
+    cx.width  = Math.round(r.width  * dpr);
+    cx.height = Math.round(30       * dpr);
+    var ctx = cx.getContext('2d');
+    ctx.scale(dpr, dpr);
+    ctx.fillStyle = '#edf2f7';
+    ctx.fillRect(0, 0, r.width, 30);
+    var scaleX = vb.width / r.width;
+    var step   = niceStep(vb.width, Math.max(2, Math.floor(r.width / 60)));
+    var uStart = Math.ceil((-xlo) / step) * step;
+    ctx.strokeStyle = '#a0aec0';
+    ctx.fillStyle   = '#4a5568';
+    ctx.font        = '9px sans-serif';
+    ctx.textAlign   = 'center';
+    ctx.lineWidth   = 1;
+    for (var u = uStart; u <= vb.width + (-xlo); u += step) {
+      var px = (u - (-xlo)) / scaleX;
+      if (px < 0 || px > r.width) continue;
+      ctx.beginPath();
+      ctx.moveTo(px, 18);
+      ctx.lineTo(px, 30);
+      ctx.stroke();
+      ctx.fillText(Math.round(u + xlo), px, 14);
+    }
+    ctx.strokeStyle = '#cbd5e0';
+    ctx.lineWidth   = 1;
+    ctx.beginPath();
+    ctx.moveTo(0, 29);
+    ctx.lineTo(r.width, 29);
+    ctx.stroke();
+  }
+
+  // Y ruler
+  var cy = document.getElementById('ruler-y');
+  if (cy) {
+    cy.style.width  = '30px';
+    cy.style.height = r.height + 'px';
+    cy.width  = Math.round(30       * dpr);
+    cy.height = Math.round(r.height * dpr);
+    var ctx2 = cy.getContext('2d');
+    ctx2.scale(dpr, dpr);
+    ctx2.fillStyle = '#edf2f7';
+    ctx2.fillRect(0, 0, 30, r.height);
+    var scaleY = vb.height / r.height;
+    var stepY  = niceStep(vb.height, Math.max(2, Math.floor(r.height / 60)));
+    var vStart = Math.ceil((-ylo) / stepY) * stepY;
+    ctx2.strokeStyle = '#a0aec0';
+    ctx2.fillStyle   = '#4a5568';
+    ctx2.font        = '9px sans-serif';
+    ctx2.lineWidth   = 1;
+    for (var v = vStart; v <= vb.height + (-ylo); v += stepY) {
+      var py = (v - (-ylo)) / scaleY;
+      if (py < 0 || py > r.height) continue;
+      ctx2.beginPath();
+      ctx2.moveTo(18, py);
+      ctx2.lineTo(30, py);
+      ctx2.stroke();
+      ctx2.save();
+      ctx2.translate(14, py);
+      ctx2.rotate(-Math.PI / 2);
+      ctx2.textAlign = 'center';
+      ctx2.fillText(Math.round(v + ylo), 0, 0);
+      ctx2.restore();
+    }
+    ctx2.strokeStyle = '#cbd5e0';
+    ctx2.lineWidth   = 1;
+    ctx2.beginPath();
+    ctx2.moveTo(29, 0);
+    ctx2.lineTo(29, r.height);
+    ctx2.stroke();
+  }
+}
+
+var _observer = new MutationObserver(function(mutations) {
+  for (var i = 0; i < mutations.length; i++) {
+    var added = mutations[i].addedNodes;
+    for (var j = 0; j < added.length; j++) {
+      if (added[j].nodeName && added[j].nodeName.toLowerCase() === 'svg') {
+        setTimeout(function(){ reattach(); }, 60);
+        return;
+      }
+    }
+  }
+});
+
+document.addEventListener('DOMContentLoaded', function() {
+  var inner = document.getElementById('svg-inner');
+  if (inner) {
+    _observer.observe(inner, { childList: true, subtree: true });
+  }
+});
+
+})();
+    "))
+  ),
 
   tags$div(class = "app-header",
     tags$span(class = "app-title", "matxingraphout"),
@@ -224,10 +481,24 @@ ui <- fluidPage(
 
           tabPanel("SVG",
             br(),
-            tags$div(class = "dl-row",
-              downloadButton("dl_svg", "Download SVG", class = "btn-sm btn-default")
+            tags$div(class = "dl-row", style = "align-items:center; flex-wrap:wrap; gap:6px;",
+              downloadButton("dl_svg", "Download SVG", class = "btn-sm btn-default"),
+              tags$button(id = "btn-add-centroid",    class = "btn btn-sm btn-default",
+                          title = "Click on the graph to place a centroid",
+                          HTML("&#10010;&nbsp;Place centroid")),
+              tags$button(id = "btn-remove-centroid", class = "btn btn-sm btn-default",
+                          title = "Click a centroid marker to remove it",
+                          HTML("&times;&nbsp;Remove centroid")),
+              tags$span(id = "coord-display", "Hover over the graph for coordinates")
             ),
-            uiOutput("svg_out")
+            tags$div(class = "ruler-x-row",
+              tags$div(class = "ruler-corner"),
+              tags$canvas(id = "ruler-x")
+            ),
+            tags$div(class = "ruler-svg-row",
+              tags$canvas(id = "ruler-y"),
+              tags$div(id = "svg-inner", uiOutput("svg_out"))
+            )
           ),
 
           tabPanel("DOT",
@@ -511,8 +782,15 @@ server <- function(input, output, session) {
       error = function(e) e
     )
 
-    if (inherits(result, "error")) rv$error  <- conditionMessage(result)
-    else                           rv$result <- result
+    if (inherits(result, "error")) {
+      rv$error  <- conditionMessage(result)
+    } else {
+      rv$result <- result
+      session$sendCustomMessage("canvas_offset", list(
+        xlo = result$canvas$xlo,
+        ylo = result$canvas$ylo
+      ))
+    }
   })
 
   # ── Output renderers ──────────────────────────────────────────────────────
@@ -521,10 +799,9 @@ server <- function(input, output, session) {
     if (!is.null(rv$error))
       return(tags$div(class = "error-box", tags$b("Error: "), rv$error))
     if (is.null(rv$result))
-      return(tags$div(class = "svg-container",
-        tags$p(class = "svg-placeholder",
-          "\u25b6\u2002Click \u201cRender Graph\u201d to generate output.")))
-    tags$div(class = "svg-container", HTML(rv$result$svg))
+      return(tags$p(style = "color:#a0aec0; margin-top:80px; font-size:14px;",
+        "\u25b6\u2002Click \u201cRender Graph\u201d to generate output."))
+    HTML(rv$result$svg)
   })
 
   output$dot_out <- renderText({
@@ -651,6 +928,28 @@ server <- function(input, output, session) {
     filename = "graph.mmd",
     content  = function(f) { req(rv$result); writeLines(rv$result$mermaid, f) }
   )
+
+  # Centroid placed via mouse click on SVG
+  observeEvent(input$centroid_click, {
+    click <- input$centroid_click
+    if (is.null(click$x) || is.null(click$y)) return()
+    i <- nrow(rv$centroids) + 1L
+    rv$centroids <- rbind(rv$centroids, data.frame(
+      label = paste0("C", i),
+      x     = round(as.numeric(click$x)),
+      y     = round(as.numeric(click$y)),
+      stringsAsFactors = FALSE
+    ))
+  })
+
+  # Centroid removed by clicking its marker on SVG (0-based index from JS)
+  observeEvent(input$centroid_remove_idx, {
+    idx <- input$centroid_remove_idx
+    if (is.null(idx)) return()
+    r <- as.integer(idx) + 1L   # convert 0-based JS index to 1-based R index
+    if (r >= 1L && r <= nrow(rv$centroids))
+      rv$centroids <- rv$centroids[-r, , drop = FALSE]
+  })
 }
 
 # ── launch ────────────────────────────────────────────────────────────────────

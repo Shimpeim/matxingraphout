@@ -71,7 +71,7 @@ Values: `"auto"` (default) or `"straight"`.
 
 ---
 
-## Function signature (v0.3.5)
+## Function signature (v0.3.6)
 
 ```r
 graph_to_outputs(
@@ -101,11 +101,13 @@ graph_to_outputs(
   circle_cy          = NULL,
   edge_curvature         = "auto",   # "auto" or "straight"
   overlay_edge_curvature = "auto",
-  centroids              = NULL      # data.frame(label, x, y) or NULL → hub mode
+  centroids              = NULL,     # data.frame(label, x, y) or NULL → hub mode
+  show_centroids         = TRUE      # draw centroid crosshair markers in SVG
 )
 ```
 
-Return value: invisible named list with `$svg`, `$dot`, `$mermaid`, `$topology`.
+Return value: invisible named list with `$svg`, `$dot`, `$mermaid`, `$topology`, `$canvas`
+(where `$canvas = list(xlo, ylo)` — canvas-to-original-coordinate offsets for Shiny).
 
 ---
 
@@ -134,7 +136,14 @@ Return value: invisible named list with `$svg`, `$dot`, `$mermaid`, `$topology`.
 - When `centroids` is a non-empty data.frame(label, x, y): each edge picks its nearest centroid (by midpoint distance) as arc origin → per-region curvature
 - When `centroids` is NULL: falls back to eigenvector-centrality hub node (legacy)
 - Both structural and overlay edges use the same centroid set independently
+- Added `show_centroids = TRUE` parameter: draws red crosshair circle markers at centroid positions in the SVG (each with `data-centroid-idx` attribute for JS interaction)
+- Return value now includes `$canvas = list(xlo, ylo)` — the canvas coordinate offsets needed to convert SVG click positions back to original node-coordinate space
 - Shiny app: new "Centroids" DT panel with add/remove; R Code tab outputs centroid data.frame when defined
+- Shiny app: interactive centroid placement via mouse click on rendered SVG
+  - "Place centroid" button (toggle): click SVG → adds centroid row, draws temporary JS-side marker
+  - "Remove centroid" button (toggle): click existing centroid marker → removes row
+  - Rulers drawn on X and Y axes of graph using `<canvas>` elements (HiDPI-aware, labeled with original coordinates)
+  - `canvas_offset` custom message handler sends `xlo/ylo` after each render; `MutationObserver` on `#svg-inner` triggers ruler update + click handler reattachment
 
 ## Previous changes (v0.3.5)
 

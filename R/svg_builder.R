@@ -12,7 +12,8 @@
                        radial_center = NULL,
                        centroids = NULL,
                        edge_curvature = "auto",
-                       overlay_edge_curvature = "auto") {
+                       overlay_edge_curvature = "auto",
+                       show_centroids = FALSE) {
   n <- nrow(adj)
 
   # Canvas extents from node bounding boxes + padding
@@ -272,6 +273,34 @@
             ' font-size="', np$fontsize[i], '" fill="', np$fontcolour[i], '"',
             ' font-family="Helvetica,Arial,sans-serif">',
             .xml_esc(lbl_lines[k]), '</text>')
+    }
+  }
+
+  # ── Centroid markers ────────────────────────────────────────────────────────
+  if (show_centroids && use_centroids) {
+    .emit('  <!-- centroid markers -->')
+    for (k in seq_len(nrow(centroids_sh))) {
+      cx_k <- round(centroids_sh$x[k], 1)
+      cy_k <- round(centroids_sh$y[k], 1)
+      lbl  <- if ("label" %in% names(centroids) &&
+                   !is.na(centroids$label[k]) &&
+                   nzchar(trimws(centroids$label[k])))
+                .xml_esc(as.character(centroids$label[k]))
+              else paste0("C", k)
+      .emit('  <g class="centroid-marker" data-centroid-idx="', k - 1L, '">')
+      .emit('    <circle cx="', cx_k, '" cy="', cy_k, '" r="9"',
+            ' fill="#e53e3e" fill-opacity="0.18"',
+            ' stroke="#e53e3e" stroke-width="1.5"/>')
+      .emit('    <line x1="', cx_k - 12, '" y1="', cy_k,
+            '" x2="', cx_k + 12, '" y2="', cy_k,
+            '" stroke="#e53e3e" stroke-width="1.5"/>')
+      .emit('    <line x1="', cx_k, '" y1="', cy_k - 12,
+            '" x2="', cx_k, '" y2="', cy_k + 12,
+            '" stroke="#e53e3e" stroke-width="1.5"/>')
+      .emit('    <text x="', cx_k + 13, '" y="', cy_k - 4,
+            '" font-size="10" fill="#e53e3e"',
+            ' font-family="Helvetica,Arial,sans-serif">', lbl, '</text>')
+      .emit('  </g>')
     }
   }
 

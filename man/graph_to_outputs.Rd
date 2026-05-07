@@ -31,7 +31,8 @@ graph_to_outputs(
   circle_cy = NULL,
   edge_curvature = "auto",
   overlay_edge_curvature = "auto",
-  centroids = NULL
+  centroids = NULL,
+  show_centroids = TRUE
 )
 }
 \arguments{
@@ -167,6 +168,10 @@ as the arc origin O in the circumscribed-circle calculation.  This
 lets different regions of the diagram have distinct curvature
 orientations.  An empty data.frame is treated as \code{NULL}.}
 }}
+
+\item{show_centroids}{Logical.  When \code{TRUE} (default) and \code{centroids} is
+non-\code{NULL}, centroid markers (crosshair circles) are drawn on the SVG to
+show their positions.  Set to \code{FALSE} to suppress markers.}
 }
 \value{
 Invisibly: a named list with elements \code{svg}, \code{dot}, \code{mermaid}, and

@@ -112,6 +112,9 @@
 #'       lets different regions of the diagram have distinct curvature
 #'       orientations.  An empty data.frame is treated as `NULL`.}
 #'   }
+#' @param show_centroids Logical.  When `TRUE` (default) and `centroids` is
+#'   non-`NULL`, centroid markers (crosshair circles) are drawn on the SVG to
+#'   show their positions.  Set to `FALSE` to suppress markers.
 #'
 #' @return Invisibly: a named list with elements `svg`, `dot`, `mermaid`, and
 #'   `topology`.  The first three are character strings containing the full
@@ -201,7 +204,8 @@ graph_to_outputs <- function(
     circle_cy               = NULL,
     edge_curvature          = "auto",
     overlay_edge_curvature  = "auto",
-    centroids               = NULL
+    centroids               = NULL,
+    show_centroids          = TRUE
 ) {
 
   # ── 0. Validate & normalise inputs ─────────────────────────────────────────
@@ -323,6 +327,11 @@ graph_to_outputs <- function(
                                     default_width, default_height, svg_padding)
   }
 
+  # Canvas extents — returned so interactive clients can convert between
+  # SVG canvas space and the original coordinate space used by node_props.
+  canvas_xlo <- min(node_props$x - node_props$width  / 2) - svg_padding
+  canvas_ylo <- min(node_props$y - node_props$height / 2) - svg_padding
+
   # ── Arc origin ───────────────────────────────────────────────────────────────
   # Priority: user-supplied centroids > eigenvector-centrality hub node.
   #
@@ -349,7 +358,8 @@ graph_to_outputs <- function(
                         radial_center          = radial_center,
                         centroids              = centroids,
                         edge_curvature         = edge_curvature,
-                        overlay_edge_curvature = overlay_edge_curvature)
+                        overlay_edge_curvature = overlay_edge_curvature,
+                        show_centroids         = show_centroids)
   dot_str <- .dot_build(adj_matrix, node_props, directed,
                         adj_overlay, overlay_edge_colour,
                         overlay_edge_width, overlay_edge_style)
@@ -369,7 +379,8 @@ graph_to_outputs <- function(
   .write_if(mermaid_file, mmd_str, "Mermaid")
 
   invisible(list(svg = svg_str, dot = dot_str, mermaid = mmd_str,
-                 topology = topo))
+                 topology = topo,
+                 canvas   = list(xlo = canvas_xlo, ylo = canvas_ylo)))
 }
 
 # ── Layout helpers ───────────────────────────────────────────────────────────
