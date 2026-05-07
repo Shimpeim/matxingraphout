@@ -8,8 +8,10 @@
 <!-- badges: end -->
 
 **Convert Adjacency Matrices to SVG, DOT, and Mermaid Graphs**/n
-Takes an adjacency matrix and a node-property table and returns a rendered SVG file, Graphviz DOT source, and Mermaid flowchart source./n
+Takes an adjacency matrix and a node-property table and returns a rendered SVG file, Graphviz DOT source, and Mermaid flowchart source.
+
 No external package dependencies except for
+
     shiny (>= 1.7.0),
     DT (>= 0.28).
 
