@@ -7,7 +7,11 @@
 
 <!-- badges: end -->
 
-The goal of matxingraphout is to …
+Convert Adjacency Matrices to SVG, DOT, and Mermaid Graphs
+Takes an adjacency matrix and a node-property table and returns a rendered SVG file, Graphviz DOT source, and Mermaid flowchart source.
+No external package dependencies except for
+    shiny (>= 1.7.0),
+    DT (>= 0.28).
 
 ## Installation
 
