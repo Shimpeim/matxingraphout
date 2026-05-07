@@ -34,17 +34,24 @@ Graphviz DOT, and Mermaid flowchart outputs. No external R package dependencies.
 
 Values: `"auto"` (default) or `"straight"`.
 
-**`"auto"` algorithm:**
-1. Compute eigenvector centrality on `adj_matrix` only (symmetrised, power iteration ≤ 200 steps) via `.eigenvector_centrality(adj_matrix)` — internal helper in `graph_to_outputs.R`
-2. Identify hub node O = node with highest centrality score
-3. For each edge P1→P2: fit the circumscribed circle of triangle O–P1–P2; draw the arc of that circle from P1 to P2 that avoids O
-4. Falls back to straight line when O, P1, P2 are collinear (no finite circle)
-5. `overlay_edge_curvature` applies the same logic independently to overlay edges
+**`"auto"` algorithm — two modes, selected by whether `centroids` is supplied:**
 
-**Where it lives in `svg_builder.R`:**
-- `radial_center` is computed from hub node position and passed globally
-- Arc drawing is handled inside the edge-rendering loop using the circumscribed-circle formula
-- The `.arc_origin()` helper was **removed** in v0.3.5; curvature logic is inline
+**Mode A — centroid mode** (`centroids` is a non-empty data.frame):
+1. For each edge P1→P2, compute midpoint M = ((P1x+P2x)/2, (P1y+P2y)/2)
+2. Find the centroid C with minimum Euclidean distance to M
+3. Use C as arc origin O for that edge's circumscribed-circle arc
+4. Falls back to straight line when O, P1, P2 are collinear
+5. Both structural and overlay edges use the same centroid set (each independently picks its nearest centroid)
+
+**Mode B — hub mode** (`centroids` is NULL, legacy default):
+1. Compute eigenvector centrality on `adj_matrix` only (symmetrised, power iteration ≤ 200 steps) via `.eigenvector_centrality(adj_matrix)`
+2. Identify hub node O = node with highest centrality score
+3. Use O as global arc origin for all edges
+4. Falls back to straight line when O, P1, P2 are collinear
+
+**Where it lives:**
+- `graph_to_outputs.R`: decides mode (centroids vs hub), passes both `radial_center` and `centroids` to `.svg_build()`; only one is non-NULL at a time
+- `svg_builder.R`: per-edge dispatch — `use_centroids` flag selects nearest-centroid lookup vs global `rc_sx/rc_sy`; logic is in-line in both edge loops (structural and overlay)
 
 ### Layout modes
 
@@ -93,7 +100,8 @@ graph_to_outputs(
   circle_cx          = NULL,
   circle_cy          = NULL,
   edge_curvature         = "auto",   # "auto" or "straight"
-  overlay_edge_curvature = "auto"
+  overlay_edge_curvature = "auto",
+  centroids              = NULL      # data.frame(label, x, y) or NULL → hub mode
 )
 ```
 
@@ -120,7 +128,15 @@ Return value: invisible named list with `$svg`, `$dot`, `$mermaid`, `$topology`.
 
 ---
 
-## Recent changes (v0.3.5)
+## Recent changes (v0.3.6)
+
+- Added `centroids` parameter to `graph_to_outputs()` and `.svg_build()`
+- When `centroids` is a non-empty data.frame(label, x, y): each edge picks its nearest centroid (by midpoint distance) as arc origin → per-region curvature
+- When `centroids` is NULL: falls back to eigenvector-centrality hub node (legacy)
+- Both structural and overlay edges use the same centroid set independently
+- Shiny app: new "Centroids" DT panel with add/remove; R Code tab outputs centroid data.frame when defined
+
+## Previous changes (v0.3.5)
 
 - Added `edge_curvature` and `overlay_edge_curvature` arguments
 - Arc origin set to hub node (highest eigenvector centrality on `adj_matrix` only)

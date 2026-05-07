@@ -129,6 +129,22 @@ ui <- fluidPage(
         )
       ),
 
+      # Centroids ---
+      tags$div(class = "panel-box",
+        tags$h5("Centroids \u2014 arc curvature origins"),
+        tags$p(tags$small(style = "color:#718096",
+          "Each edge curves toward its nearest centroid (edge midpoint distance).",
+          " When the table is empty, the eigenvector-centrality hub node is used.")),
+        DT::DTOutput("centroid_table"),
+        tags$br(),
+        fluidRow(
+          column(6, actionButton("add_centroid", "\u002b Add centroid",
+                                 class = "btn-sm btn-default", width = "100%")),
+          column(6, actionButton("del_centroid", "\u2212 Delete selected",
+                                 class = "btn-sm btn-danger",  width = "100%"))
+        )
+      ),
+
       # Settings ---
       tags$div(class = "panel-box",
         tags$h5("Settings"),
@@ -250,12 +266,14 @@ ui <- fluidPage(
 server <- function(input, output, session) {
 
   rv <- reactiveValues(
-    nodes   = default_nodes(),
-    adj     = default_adj(c("A", "B", "C")),
-    overlay = matrix(0, 3L, 3L,
-                     dimnames = list(c("A","B","C"), c("A","B","C"))),
-    result  = NULL,
-    error   = NULL
+    nodes     = default_nodes(),
+    adj       = default_adj(c("A", "B", "C")),
+    overlay   = matrix(0, 3L, 3L,
+                       dimnames = list(c("A","B","C"), c("A","B","C"))),
+    centroids = data.frame(label = character(0), x = numeric(0), y = numeric(0),
+                           stringsAsFactors = FALSE),
+    result    = NULL,
+    error     = NULL
   )
 
   # ── Node table ────────────────────────────────────────────────────────────
@@ -363,6 +381,50 @@ server <- function(input, output, session) {
   output$adj_matrix_ui <- renderUI({ make_matrix_ui(rv$nodes$id, "adj") })
   output$ovl_matrix_ui <- renderUI({ make_matrix_ui(rv$nodes$id, "ovl") })
 
+  # ── Centroid table ────────────────────────────────────────────────────────
+
+  output$centroid_table <- DT::renderDT({
+    DT::datatable(
+      rv$centroids,
+      rownames  = FALSE,
+      editable  = list(target = "cell"),
+      selection = "multiple",
+      options   = list(
+        pageLength = 10,
+        dom        = "t",
+        scrollX    = TRUE,
+        columnDefs = list(
+          list(width = "80px",  targets = c(1L, 2L)),   # x, y
+          list(width = "100px", targets = 0L)            # label
+        )
+      )
+    )
+  }, server = FALSE)
+
+  observeEvent(input$centroid_table_cell_edit, {
+    info <- input$centroid_table_cell_edit
+    rv$centroids[info$row, info$col + 1L] <- tryCatch(
+      type.convert(as.character(info$value), as.is = TRUE),
+      error = function(e) info$value
+    )
+  })
+
+  observeEvent(input$add_centroid, {
+    i <- nrow(rv$centroids) + 1L
+    rv$centroids <- rbind(rv$centroids, data.frame(
+      label = paste0("C", i),
+      x     = 200,
+      y     = 200,
+      stringsAsFactors = FALSE
+    ))
+  })
+
+  observeEvent(input$del_centroid, {
+    sel <- input$centroid_table_rows_selected
+    if (length(sel) > 0L)
+      rv$centroids <- rv$centroids[-sel, , drop = FALSE]
+  })
+
   # ── Render ────────────────────────────────────────────────────────────────
 
   observeEvent(input$render_btn, {
@@ -406,6 +468,16 @@ server <- function(input, output, session) {
     circle_cx <- if (isTRUE(input$circle_cx == 0)) NULL else input$circle_cx
     circle_cy <- if (isTRUE(input$circle_cy == 0)) NULL else input$circle_cy
 
+    # Centroids: empty table → NULL (falls back to eigenvector hub mode)
+    centroids_arg <- if (nrow(rv$centroids) > 0L) {
+      df   <- rv$centroids
+      df$x <- suppressWarnings(as.numeric(df$x))
+      df$y <- suppressWarnings(as.numeric(df$y))
+      df
+    } else {
+      NULL
+    }
+
     result <- tryCatch(
       graph_to_outputs(
         adj_matrix             = adj,
@@ -433,7 +505,8 @@ server <- function(input, output, session) {
         sunburst_min_branching = input$sunburst_min_branching,
         circle_r               = circle_r,
         circle_cx              = circle_cx,
-        circle_cy              = circle_cy
+        circle_cy              = circle_cy,
+        centroids              = centroids_arg
       ),
       error = function(e) e
     )
@@ -504,6 +577,7 @@ server <- function(input, output, session) {
     ids  <- np$id
     adj  <- rv$adj
     n    <- length(ids)
+    cen  <- rv$centroids
 
     fmtv <- function(x, q = FALSE) {
       s <- vapply(x, function(v) {
@@ -514,6 +588,23 @@ server <- function(input, output, session) {
 
     mat_rows <- apply(adj, 1L, function(r) paste(r, collapse = ", "))
     mat_body <- paste0("    ", mat_rows, collapse = ",\n")
+
+    # Centroids block (only when table is non-empty)
+    cen_block <- if (nrow(cen) > 0L) {
+      cen$x <- suppressWarnings(as.numeric(cen$x))
+      cen$y <- suppressWarnings(as.numeric(cen$y))
+      paste0(
+        "centroids <- data.frame(\n",
+        "  label = c(", fmtv(cen$label, q = TRUE), "),\n",
+        "  x     = c(", fmtv(cen$x), "),\n",
+        "  y     = c(", fmtv(cen$y), "),\n",
+        "  stringsAsFactors = FALSE\n",
+        ")\n\n"
+      )
+    } else ""
+
+    cen_arg <- if (nrow(cen) > 0L) "  centroids      = centroids,\n" else
+      "  # centroids = NULL  # (uses eigenvector-centrality hub)\n"
 
     paste0(
       "library(matxingraphout)\n\n",
@@ -529,6 +620,7 @@ server <- function(input, output, session) {
       "  x         = c(", fmtv(np$x),    "),\n",
       "  y         = c(", fmtv(np$y),    "),\n",
       "  stringsAsFactors = FALSE\n)\n\n",
+      cen_block,
       "result <- graph_to_outputs(\n",
       "  adj_matrix     = adj,\n",
       "  node_props     = nodes,\n",
@@ -537,6 +629,7 @@ server <- function(input, output, session) {
       "  edge_colour    = \"", input$edge_colour, "\",\n",
       "  edge_width     = ", input$edge_width, ",\n",
       "  edge_curvature = \"", input$edge_curvature, "\",\n",
+      cen_arg,
       "  svg_file       = \"graph.svg\",\n",
       "  dot_file       = \"graph.dot\",\n",
       "  mermaid_file   = \"graph.mmd\"\n",

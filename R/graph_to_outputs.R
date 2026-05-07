@@ -99,6 +99,19 @@
 #'   (`adj_overlay`) independently of `edge_curvature`.  Same values:
 #'   `"auto"` (default) or `"straight"`.  Has no effect when `adj_overlay` is
 #'   `NULL`.
+#' @param centroids Optional `data.frame` with columns `x` and `y` (numeric,
+#'   SVG pixel space) that defines one or more curvature-origin points.
+#'   An optional `label` column is accepted but not used in calculations.
+#'   \describe{
+#'     \item{When `NULL` (default)}{Arc curvature (for both structural and
+#'       overlay edges) is anchored at the node with the highest eigenvector
+#'       centrality score — the existing global-hub behaviour.}
+#'     \item{When non-empty}{Each edge independently selects the centroid
+#'       nearest to its **midpoint** (Euclidean distance) and uses that point
+#'       as the arc origin O in the circumscribed-circle calculation.  This
+#'       lets different regions of the diagram have distinct curvature
+#'       orientations.  An empty data.frame is treated as `NULL`.}
+#'   }
 #'
 #' @return Invisibly: a named list with elements `svg`, `dot`, `mermaid`, and
 #'   `topology`.  The first three are character strings containing the full
@@ -187,7 +200,8 @@ graph_to_outputs <- function(
     circle_cx               = NULL,
     circle_cy               = NULL,
     edge_curvature          = "auto",
-    overlay_edge_curvature  = "auto"
+    overlay_edge_curvature  = "auto",
+    centroids               = NULL
 ) {
 
   # ── 0. Validate & normalise inputs ─────────────────────────────────────────
@@ -255,7 +269,16 @@ graph_to_outputs <- function(
   for (col in c("x", "y", "width", "height", "fontsize"))
     node_props[[col]] <- as.numeric(node_props[[col]])
 
-  # ── 0a. Validate overlay matrix ────────────────────────────────────────────
+  # ── 0a. Validate centroids ─────────────────────────────────────────────────
+  if (!is.null(centroids)) {
+    if (!is.data.frame(centroids) || !all(c("x", "y") %in% names(centroids)))
+      stop("centroids must be a data.frame with columns 'x' and 'y'.")
+    centroids$x <- as.numeric(centroids$x)
+    centroids$y <- as.numeric(centroids$y)
+    if (nrow(centroids) == 0L) centroids <- NULL   # empty df → NULL (hub mode)
+  }
+
+  # ── 0b. Validate overlay matrix ────────────────────────────────────────────
   if (!is.null(adj_overlay)) {
     if (!is.matrix(adj_overlay) ||
         !identical(dim(adj_overlay), dim(adj_matrix)))
@@ -300,17 +323,22 @@ graph_to_outputs <- function(
                                     default_width, default_height, svg_padding)
   }
 
-  # ── Arc origin: node with highest eigenvector centrality ────────────────────
-  # Computed only when at least one edge type uses arc routing.
-  # The hub node position serves as the global O in the circumscribed-circle
-  # arc calculation, anchoring curvature at the structural centre of the graph.
+  # ── Arc origin ───────────────────────────────────────────────────────────────
+  # Priority: user-supplied centroids > eigenvector-centrality hub node.
+  #
+  # When centroids is non-NULL, each edge independently picks its nearest
+  # centroid as arc origin O; radial_center is not needed.
+  # When centroids is NULL, the single global hub node (highest eigenvector
+  # centrality on adj_matrix) is used for all edges — the legacy behaviour.
   need_arc <- edge_curvature != "straight" || overlay_edge_curvature != "straight"
-  radial_center <- if (need_arc) {
+  if (!is.null(centroids) && need_arc) {
+    radial_center <- NULL        # svg_build will use centroids instead
+  } else if (need_arc) {
     ec  <- .eigenvector_centrality(adj_matrix)
     hub <- which.max(ec)
-    c(node_props$x[hub], node_props$y[hub])
+    radial_center <- c(node_props$x[hub], node_props$y[hub])
   } else {
-    NULL
+    radial_center <- NULL
   }
 
   # ── 1–3. Build representations ─────────────────────────────────────────────
@@ -319,6 +347,7 @@ graph_to_outputs <- function(
                         adj_overlay, overlay_edge_colour,
                         overlay_edge_width, overlay_edge_style,
                         radial_center          = radial_center,
+                        centroids              = centroids,
                         edge_curvature         = edge_curvature,
                         overlay_edge_curvature = overlay_edge_curvature)
   dot_str <- .dot_build(adj_matrix, node_props, directed,

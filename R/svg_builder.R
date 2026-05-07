@@ -10,6 +10,7 @@
                        adj_ov = NULL, ovcol = "#999999",
                        ovw = 1.0, ovstyle = "dashed",
                        radial_center = NULL,
+                       centroids = NULL,
                        edge_curvature = "auto",
                        overlay_edge_curvature = "auto") {
   n <- nrow(adj)
@@ -26,14 +27,25 @@
   np$sx <- np$x - xlo
   np$sy <- np$y - ylo
 
-  # Global arc origin O = the eigenvector-centrality hub node (shifted to
-  # canvas coordinates).  NULL when edge_curvature = "straight" for both
-  # edge types, or when the graph has no edges.
-  has_rc     <- !is.null(radial_center)
-  rc_sx      <- if (has_rc) radial_center[1] - xlo else 0
-  rc_sy      <- if (has_rc) radial_center[2] - ylo else 0
-  use_arc    <- has_rc && edge_curvature         != "straight"
-  use_arc_ov <- has_rc && overlay_edge_curvature != "straight"
+  # Arc-origin mode flags (shifted to canvas coordinates).
+  # Two modes, mutually exclusive:
+  #   centroid mode  — per-edge: nearest user centroid to the edge midpoint
+  #   hub mode       — global:   eigenvector-centrality hub node (radial_center)
+  has_rc        <- !is.null(radial_center)
+  rc_sx         <- if (has_rc) radial_center[1] - xlo else 0
+  rc_sy         <- if (has_rc) radial_center[2] - ylo else 0
+
+  use_centroids <- !is.null(centroids) && nrow(centroids) > 0L
+  if (use_centroids) {
+    centroids_sh <- data.frame(
+      x = as.numeric(centroids$x) - xlo,
+      y = as.numeric(centroids$y) - ylo
+    )
+  }
+
+  # In hub mode, pre-compute whether arc routing is active for each edge type
+  use_arc    <- !use_centroids && has_rc && edge_curvature         != "straight"
+  use_arc_ov <- !use_centroids && has_rc && overlay_edge_curvature != "straight"
 
   buf <- character(0)
   .emit <- function(...) buf <<- c(buf, paste0(...))
@@ -96,9 +108,21 @@
           }
         }
 
-        arc <- if (use_arc) .circumcircle_arc_svg(
-          from[1] - rc_sx, from[2] - rc_sy,
-          to[1]   - rc_sx, to[2]   - rc_sy) else NULL
+        arc <- if (edge_curvature == "straight") {
+          NULL
+        } else if (use_centroids) {
+          mx    <- (from[1] + to[1]) / 2
+          my    <- (from[2] + to[2]) / 2
+          dists <- (centroids_sh$x - mx)^2 + (centroids_sh$y - my)^2
+          nc    <- centroids_sh[which.min(dists), , drop = FALSE]
+          .circumcircle_arc_svg(from[1] - nc$x, from[2] - nc$y,
+                                to[1]   - nc$x, to[2]   - nc$y)
+        } else if (use_arc) {
+          .circumcircle_arc_svg(from[1] - rc_sx, from[2] - rc_sy,
+                                to[1]   - rc_sx, to[2]   - rc_sy)
+        } else {
+          NULL
+        }
 
         if (!is.null(arc)) {
           .emit('  <path d="M ', round(from[1], 1), ',', round(from[2], 1),
@@ -162,9 +186,21 @@
               to <- to - c(ux, uy) * 2
             }
           }
-          arc_ov <- if (use_arc_ov) .circumcircle_arc_svg(
-            from[1] - rc_sx, from[2] - rc_sy,
-            to[1]   - rc_sx, to[2]   - rc_sy) else NULL
+          arc_ov <- if (overlay_edge_curvature == "straight") {
+            NULL
+          } else if (use_centroids) {
+            mx    <- (from[1] + to[1]) / 2
+            my    <- (from[2] + to[2]) / 2
+            dists <- (centroids_sh$x - mx)^2 + (centroids_sh$y - my)^2
+            nc    <- centroids_sh[which.min(dists), , drop = FALSE]
+            .circumcircle_arc_svg(from[1] - nc$x, from[2] - nc$y,
+                                  to[1]   - nc$x, to[2]   - nc$y)
+          } else if (use_arc_ov) {
+            .circumcircle_arc_svg(from[1] - rc_sx, from[2] - rc_sy,
+                                  to[1]   - rc_sx, to[2]   - rc_sy)
+          } else {
+            NULL
+          }
 
           if (!is.null(arc_ov)) {
             .emit('  <path d="M ', round(from[1], 1), ',', round(from[2], 1),

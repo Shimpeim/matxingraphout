@@ -30,7 +30,8 @@ graph_to_outputs(
   circle_cx = NULL,
   circle_cy = NULL,
   edge_curvature = "auto",
-  overlay_edge_curvature = "auto"
+  overlay_edge_curvature = "auto",
+  centroids = NULL
 )
 }
 \arguments{
@@ -152,6 +153,20 @@ collinear (no finite circle exists).}
 (\code{adj_overlay}) independently of \code{edge_curvature}.  Same values:
 \code{"auto"} (default) or \code{"straight"}.  Has no effect when \code{adj_overlay} is
 \code{NULL}.}
+
+\item{centroids}{Optional \code{data.frame} with columns \code{x} and \code{y} (numeric,
+SVG pixel space) that defines one or more curvature-origin points.
+An optional \code{label} column is accepted but not used in calculations.
+\describe{
+\item{When \code{NULL} (default)}{Arc curvature (for both structural and
+overlay edges) is anchored at the node with the highest eigenvector
+centrality score — the existing global-hub behaviour.}
+\item{When non-empty}{Each edge independently selects the centroid
+nearest to its \strong{midpoint} (Euclidean distance) and uses that point
+as the arc origin O in the circumscribed-circle calculation.  This
+lets different regions of the diagram have distinct curvature
+orientations.  An empty data.frame is treated as \code{NULL}.}
+}}
 }
 \value{
 Invisibly: a named list with elements \code{svg}, \code{dot}, \code{mermaid}, and
