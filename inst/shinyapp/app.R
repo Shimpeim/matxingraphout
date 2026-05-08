@@ -171,6 +171,7 @@ $(document).on('click', '#btn-add-centroid', function() {
     $(this).addClass('mode-active');
     $('#btn-remove-centroid').removeClass('mode-active');
   }
+  updateCursors();
 });
 
 $(document).on('click', '#btn-remove-centroid', function() {
@@ -182,6 +183,7 @@ $(document).on('click', '#btn-remove-centroid', function() {
     $(this).addClass('mode-active');
     $('#btn-add-centroid').removeClass('mode-active');
   }
+  updateCursors();
 });
 
 function getSvg() {
@@ -230,15 +232,23 @@ function reattach() {
   };
 
   svg.querySelectorAll('g[data-centroid-idx]').forEach(function(g) {
-    g.style.cursor = (mode === 'remove') ? 'pointer' : 'default';
     g.onclick = function(e) {
+      e.stopPropagation(); // always block svg.onclick to prevent adding centroid on top
       if (mode === 'remove') {
         var idx = parseInt(g.getAttribute('data-centroid-idx'), 10);
         Shiny.setInputValue('centroid_remove_idx', idx, { priority: 'event' });
         g.parentNode.removeChild(g);
-        e.stopPropagation();
       }
     };
+  });
+  updateCursors();
+}
+
+function updateCursors() {
+  var svg = getSvg();
+  if (!svg) return;
+  svg.querySelectorAll('g[data-centroid-idx]').forEach(function(g) {
+    g.style.cursor = (mode === 'remove') ? 'pointer' : 'default';
   });
 }
 
@@ -606,6 +616,22 @@ document.addEventListener('DOMContentLoaded', function() {
           tags$b("Edge labels"), " — same format as matrix but cells are label strings. ",
           tags$b("Settings"), " — two columns: Setting, Value."
         )),
+        tags$p(tags$small(tags$b("Batch upload:"),
+          " select all CSVs for one story at once.",
+          " Files are routed by suffix: ",
+          tags$code("_adj"), ", ",
+          tags$code("_node_props"), ", ",
+          tags$code("_edge_labels"), ", ",
+          tags$code("_edge_props"), ", ",
+          tags$code("_overlay"), ", ",
+          tags$code("_settings"), ", ",
+          tags$code("_legend_shapes"), ", ",
+          tags$code("_legend_colours"), "."
+        )),
+        fileInput("csv_batch", NULL, multiple = TRUE, accept = ".csv",
+                  buttonLabel = "Batch upload\u2026",
+                  placeholder  = "e.g. mononoke_adj.csv + mononoke_node_props.csv + \u2026"),
+        tags$hr(style = "border-color:#edf2f7; margin:6px 0 10px"),
         fileInput("csv_nodes",   "Node properties (.csv)", accept = ".csv",
                   placeholder = "node_props.csv"),
         fileInput("csv_adj",     "Adjacency matrix (.csv)", accept = ".csv",
@@ -1004,6 +1030,174 @@ server <- function(input, output, session) {
   })
 
   # ── CSV import ────────────────────────────────────────────────────────────
+
+  # ── Batch upload: route files by filename suffix ─────────────────────────
+  observeEvent(input$csv_batch, {
+    req(input$csv_batch)
+    files   <- input$csv_batch   # data.frame: name, size, type, datapath
+    has_sfx <- function(nm, sfx) endsWith(tolower(trimws(nm)), tolower(sfx))
+
+    # Helper: apply a parsed settings list to UI inputs
+    apply_settings <- function(s) {
+      if (!is.null(s$directed))
+        updateCheckboxInput(session, "directed",
+          value = tolower(trimws(s$directed)) %in% c("true","1","yes"))
+      if (!is.null(s$layout))
+        updateSelectInput(session, "layout", selected = s$layout)
+      if (!is.null(s$edge_colour))
+        updateTextInput(session, "edge_colour", value = s$edge_colour)
+      if (!is.null(s$edge_width))
+        updateNumericInput(session, "edge_width", value = as.numeric(s$edge_width))
+      if (!is.null(s$edge_curvature))
+        updateSelectInput(session, "edge_curvature", selected = s$edge_curvature)
+      if (!is.null(s$default_width))
+        updateNumericInput(session, "default_width",    value = as.numeric(s$default_width))
+      if (!is.null(s$default_height))
+        updateNumericInput(session, "default_height",   value = as.numeric(s$default_height))
+      if (!is.null(s$default_fontsize))
+        updateNumericInput(session, "default_fontsize", value = as.numeric(s$default_fontsize))
+      if (!is.null(s$default_fontcolour))
+        updateTextInput(session, "default_fontcolour",  value = s$default_fontcolour)
+      if (!is.null(s$default_stroke))
+        updateTextInput(session, "default_stroke",      value = s$default_stroke)
+      if (!is.null(s$svg_padding))
+        updateNumericInput(session, "svg_padding",      value = as.numeric(s$svg_padding))
+      if (!is.null(s$show_legend))
+        updateCheckboxInput(session, "show_legend",
+          value = tolower(trimws(s$show_legend)) %in% c("true","1","yes"))
+      if (!is.null(s$legend_title))
+        updateTextInput(session, "legend_title", value = s$legend_title)
+    }
+
+    # Pass 1 — settings (must come first so layout/style UI is ready)
+    for (i in seq_len(nrow(files))) {
+      if (has_sfx(files$name[i], "_settings.csv")) {
+        s <- tryCatch(parse_settings_csv(files$datapath[i]), error = function(e) NULL)
+        if (!is.null(s)) apply_settings(s)
+      }
+    }
+
+    # Pass 2 — node properties
+    for (i in seq_len(nrow(files))) {
+      if (has_sfx(files$name[i], "_node_props.csv")) {
+        df <- tryCatch(parse_node_csv(files$datapath[i]), error = function(e) NULL)
+        if (!is.null(df) && "id" %in% names(df)) {
+          rv$nodes <- df
+          sync_ids()
+          rv$import_ver <- rv$import_ver + 1L
+        }
+      }
+    }
+
+    # Pass 3 — adjacency matrix (may also seed node table if no node_props present)
+    for (i in seq_len(nrow(files))) {
+      if (has_sfx(files$name[i], "_adj.csv")) {
+        mat <- tryCatch(parse_matrix_csv(files$datapath[i], numeric = TRUE),
+                        error = function(e) NULL)
+        if (!is.null(mat)) {
+          rv$adj  <- mat
+          new_ids <- rownames(mat)
+          if (!identical(new_ids, rv$nodes$id)) {
+            kept     <- rv$nodes[rv$nodes$id %in% new_ids, , drop = FALSE]
+            new_rows <- setdiff(new_ids, kept$id)
+            if (length(new_rows)) {
+              extra <- data.frame(
+                id = new_rows, label = new_rows, shape = "rect", colour = "#e8f0fe",
+                x = NA_real_, y = NA_real_, width = NA_real_, height = NA_real_,
+                fontsize = NA_real_, fontcolour = NA_character_, stroke = NA_character_,
+                stringsAsFactors = FALSE)
+              kept <- rbind(kept, extra)
+            }
+            kept     <- kept[match(new_ids, kept$id), , drop = FALSE]
+            rv$nodes <- kept
+          }
+          sync_ids()
+          rv$import_ver <- rv$import_ver + 1L
+        }
+      }
+    }
+
+    # Pass 4 — edge labels
+    for (i in seq_len(nrow(files))) {
+      if (has_sfx(files$name[i], "_edge_labels.csv")) {
+        mat <- tryCatch(parse_matrix_csv(files$datapath[i], numeric = FALSE),
+                        error = function(e) NULL)
+        if (!is.null(mat)) {
+          rv$edge_labels <- mat
+          rv$import_ver  <- rv$import_ver + 1L
+        }
+      }
+    }
+
+    # Pass 5 — structural edge properties
+    for (i in seq_len(nrow(files))) {
+      nm <- files$name[i]
+      if (has_sfx(nm, "_edge_props.csv") || tolower(trimws(nm)) == "edge_props.csv") {
+        df <- tryCatch(read.csv(files$datapath[i], stringsAsFactors = FALSE),
+                       error = function(e) NULL)
+        if (!is.null(df) && "weight" %in% tolower(names(df))) {
+          names(df) <- tolower(names(df))
+          rv$edge_props <- df
+        }
+      }
+    }
+
+    # Pass 6 — overlay matrix
+    for (i in seq_len(nrow(files))) {
+      if (has_sfx(files$name[i], "_overlay.csv")) {
+        mat <- tryCatch(parse_matrix_csv(files$datapath[i], numeric = TRUE),
+                        error = function(e) NULL)
+        if (!is.null(mat)) {
+          rv$overlay <- mat
+          updateCheckboxInput(session, "use_overlay", value = TRUE)
+          rv$import_ver <- rv$import_ver + 1L
+        }
+      }
+    }
+
+    # Pass 7 — overlay edge properties
+    for (i in seq_len(nrow(files))) {
+      if (has_sfx(files$name[i], "_overlay_edge_props.csv")) {
+        df <- tryCatch(read.csv(files$datapath[i], stringsAsFactors = FALSE),
+                       error = function(e) NULL)
+        if (!is.null(df) && "weight" %in% tolower(names(df))) {
+          names(df) <- tolower(names(df))
+          rv$overlay_edge_props <- df
+        }
+      }
+    }
+
+    # Pass 8 — legend shapes
+    for (i in seq_len(nrow(files))) {
+      if (has_sfx(files$name[i], "_legend_shapes.csv")) {
+        df <- tryCatch({
+          d <- read.csv(files$datapath[i], header = TRUE, stringsAsFactors = FALSE)
+          names(d) <- tolower(trimws(names(d)))
+          d
+        }, error = function(e) NULL)
+        if (!is.null(df) && all(c("shape","label") %in% names(df)))
+          rv$legend_shapes <- df[, c("shape","label"), drop = FALSE]
+      }
+    }
+
+    # Pass 9 — legend colours
+    for (i in seq_len(nrow(files))) {
+      nm <- files$name[i]
+      if (has_sfx(nm, "_legend_colours.csv") || has_sfx(nm, "_legend_colors.csv")) {
+        df <- tryCatch({
+          d <- read.csv(files$datapath[i], header = TRUE, stringsAsFactors = FALSE)
+          names(d) <- tolower(trimws(names(d)))
+          if ("color" %in% names(d) && !"colour" %in% names(d))
+            names(d)[names(d) == "color"] <- "colour"
+          d
+        }, error = function(e) NULL)
+        if (!is.null(df) && all(c("colour","label") %in% names(df)))
+          rv$legend_colours <- df[, c("colour","label"), drop = FALSE]
+      }
+    }
+
+    rv$error <- NULL
+  })
 
   observeEvent(input$csv_nodes, {
     req(input$csv_nodes)

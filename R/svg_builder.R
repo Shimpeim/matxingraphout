@@ -525,16 +525,16 @@
                    nzchar(trimws(centroids$label[k])))
                 .xml_esc(as.character(centroids$label[k]))
               else paste0("C", k)
-      .emit('  <g class="centroid-marker" data-centroid-idx="', k - 1L, '">')
-      .emit('    <circle cx="', cx_k, '" cy="', cy_k, '" r="9"',
-            ' fill="#e53e3e" fill-opacity="0.18"',
-            ' stroke="#e53e3e" stroke-width="1.5"/>')
-      .emit('    <line x1="', cx_k - 12, '" y1="', cy_k,
-            '" x2="', cx_k + 12, '" y2="', cy_k,
-            '" stroke="#e53e3e" stroke-width="1.5"/>')
-      .emit('    <line x1="', cx_k, '" y1="', cy_k - 12,
-            '" x2="', cx_k, '" y2="', cy_k + 12,
-            '" stroke="#e53e3e" stroke-width="1.5"/>')
+      .emit('  <g class="centroid-marker" data-centroid-idx="', k - 1L, '" style="cursor:pointer">')
+      .emit('    <circle cx="', cx_k, '" cy="', cy_k, '" r="12"',
+            ' fill="#e53e3e" fill-opacity="0.40"',
+            ' stroke="#e53e3e" stroke-width="2"/>')
+      .emit('    <line x1="', cx_k - 16, '" y1="', cy_k,
+            '" x2="', cx_k + 16, '" y2="', cy_k,
+            '" stroke="#e53e3e" stroke-width="2"/>')
+      .emit('    <line x1="', cx_k, '" y1="', cy_k - 16,
+            '" x2="', cx_k, '" y2="', cy_k + 16,
+            '" stroke="#e53e3e" stroke-width="2"/>')
       .emit('    <text x="', cx_k + 13, '" y="', cy_k - 4,
             '" font-size="10" fill="#e53e3e"',
             ' font-family="Helvetica,Arial,sans-serif">', lbl, '</text>')
