@@ -245,20 +245,23 @@
           mar_attr_this <- ''
         }
 
-        arc <- if (edge_curvature == "straight") {
-          NULL
+        arc_origin <- NULL
+        if (edge_curvature == "straight") {
+          arc <- NULL
         } else if (use_centroids) {
-          mx    <- (from[1] + to[1]) / 2
-          my    <- (from[2] + to[2]) / 2
-          dists <- (centroids_sh$x - mx)^2 + (centroids_sh$y - my)^2
+          cmx   <- (from[1] + to[1]) / 2
+          cmy   <- (from[2] + to[2]) / 2
+          dists <- (centroids_sh$x - cmx)^2 + (centroids_sh$y - cmy)^2
           nc    <- centroids_sh[which.min(dists), , drop = FALSE]
-          .circumcircle_arc_svg(from[1] - nc$x, from[2] - nc$y,
-                                to[1]   - nc$x, to[2]   - nc$y)
+          arc_origin <- c(nc$x, nc$y)
+          arc   <- .circumcircle_arc_svg(from[1] - nc$x, from[2] - nc$y,
+                                         to[1]   - nc$x, to[2]   - nc$y)
         } else if (use_arc) {
-          .circumcircle_arc_svg(from[1] - rc_sx, from[2] - rc_sy,
-                                to[1]   - rc_sx, to[2]   - rc_sy)
+          arc_origin <- c(rc_sx, rc_sy)
+          arc   <- .circumcircle_arc_svg(from[1] - rc_sx, from[2] - rc_sy,
+                                         to[1]   - rc_sx, to[2]   - rc_sy)
         } else {
-          NULL
+          arc <- NULL
         }
 
         if (!is.null(arc)) {
@@ -283,9 +286,14 @@
           else if (v != 1)
             lbl_txt <- format(v, trim = TRUE)
           if (!is.null(lbl_txt)) {
-            mx <- (from[1] + to[1]) / 2
-            my <- (from[2] + to[2]) / 2
-            .emit('  <text x="', round(mx, 1), '" y="', round(my, 1), '"',
+            if (!is.null(arc) && !is.null(arc_origin)) {
+              lp <- .arc_label_pt(from, to, arc_origin)
+              lbl_x <- lp[1]; lbl_y <- lp[2]
+            } else {
+              lbl_x <- (from[1] + to[1]) / 2
+              lbl_y <- (from[2] + to[2]) / 2
+            }
+            .emit('  <text x="', round(lbl_x, 1), '" y="', round(lbl_y, 1), '"',
                   ' text-anchor="middle" dominant-baseline="auto"',
                   ' dy="-4" font-size="10" fill="', es$colour, '"',
                   ' font-family="Helvetica,Arial,sans-serif">',
@@ -350,20 +358,23 @@
             ov_mar_this <- ''
           }
 
-          arc_ov <- if (overlay_edge_curvature == "straight") {
-            NULL
+          arc_ov_origin <- NULL
+          if (overlay_edge_curvature == "straight") {
+            arc_ov <- NULL
           } else if (use_centroids) {
-            mx    <- (from[1] + to[1]) / 2
-            my    <- (from[2] + to[2]) / 2
-            dists <- (centroids_sh$x - mx)^2 + (centroids_sh$y - my)^2
-            nc    <- centroids_sh[which.min(dists), , drop = FALSE]
-            .circumcircle_arc_svg(from[1] - nc$x, from[2] - nc$y,
-                                  to[1]   - nc$x, to[2]   - nc$y)
+            cmx_ov <- (from[1] + to[1]) / 2
+            cmy_ov <- (from[2] + to[2]) / 2
+            dists  <- (centroids_sh$x - cmx_ov)^2 + (centroids_sh$y - cmy_ov)^2
+            nc_ov  <- centroids_sh[which.min(dists), , drop = FALSE]
+            arc_ov_origin <- c(nc_ov$x, nc_ov$y)
+            arc_ov <- .circumcircle_arc_svg(from[1] - nc_ov$x, from[2] - nc_ov$y,
+                                            to[1]   - nc_ov$x, to[2]   - nc_ov$y)
           } else if (use_arc_ov) {
-            .circumcircle_arc_svg(from[1] - rc_sx, from[2] - rc_sy,
-                                  to[1]   - rc_sx, to[2]   - rc_sy)
+            arc_ov_origin <- c(rc_sx, rc_sy)
+            arc_ov <- .circumcircle_arc_svg(from[1] - rc_sx, from[2] - rc_sy,
+                                            to[1]   - rc_sx, to[2]   - rc_sy)
           } else {
-            NULL
+            arc_ov <- NULL
           }
 
           if (!is.null(arc_ov)) {
@@ -388,9 +399,14 @@
             else if (v != 1)
               ov_lbl_txt <- format(v, trim = TRUE)
             if (!is.null(ov_lbl_txt)) {
-              mx <- (from[1] + to[1]) / 2
-              my <- (from[2] + to[2]) / 2
-              .emit('  <text x="', round(mx, 1), '" y="', round(my, 1), '"',
+              if (!is.null(arc_ov) && !is.null(arc_ov_origin)) {
+                lp_ov  <- .arc_label_pt(from, to, arc_ov_origin)
+                ov_lbl_x <- lp_ov[1]; ov_lbl_y <- lp_ov[2]
+              } else {
+                ov_lbl_x <- (from[1] + to[1]) / 2
+                ov_lbl_y <- (from[2] + to[2]) / 2
+              }
+              .emit('  <text x="', round(ov_lbl_x, 1), '" y="', round(ov_lbl_y, 1), '"',
                     ' text-anchor="middle" dominant-baseline="auto"',
                     ' dy="-4" font-size="10" fill="', ovs$colour, '"',
                     ' font-family="Helvetica,Arial,sans-serif">',
@@ -712,4 +728,60 @@
     large_arc = if (span > pi) 1L else 0L,   # SVG large-arc-flag
     sweep     = sweep
   )
+}
+
+
+# ── Arc label-point helper ─────────────────────────────────────────────────────
+
+#' Midpoint of the drawn arc between two edge endpoints.
+#'
+#' Replicates the circumcircle construction used by `.circumcircle_arc_svg()`
+#' to find the circle centre, then returns the canvas point at the mid-angle
+#' of the chosen arc (the arc that avoids the arc-origin O).  Falls back to
+#' the chord midpoint when O, from, to are collinear (same condition that
+#' makes `.circumcircle_arc_svg()` return NULL).
+#'
+#' @param from  Numeric(2) — start endpoint in canvas coords.
+#' @param to    Numeric(2) — end endpoint in canvas coords.
+#' @param origin Numeric(2) — arc origin O in canvas coords
+#'   (nearest centroid or hub node).
+#' @return Numeric(2) canvas coordinates of the arc midpoint.
+#' @keywords internal
+#' @noRd
+.arc_label_pt <- function(from, to, origin) {
+  x1 <- from[1] - origin[1];  y1 <- from[2] - origin[2]
+  x2 <- to[1]   - origin[1];  y2 <- to[2]   - origin[2]
+
+  denom <- 2 * (x1 * y2 - y1 * x2)
+  if (abs(denom) < 1e-9) return((from + to) / 2)   # collinear → chord mid
+
+  r1sq <- x1^2 + y1^2;  r2sq <- x2^2 + y2^2
+  cxc  <- (y2 * r1sq - y1 * r2sq) / denom
+  cyc  <- (x1 * r2sq - x2 * r1sq) / denom
+  R    <- sqrt(cxc^2 + cyc^2)
+
+  # Circle centre in canvas coordinates
+  cx <- origin[1] + cxc;  cy <- origin[2] + cyc
+
+  n2pi <- function(a) ((a %% (2 * pi)) + 2 * pi) %% (2 * pi)
+  th1  <- n2pi(atan2(from[2]     - cy, from[1]     - cx))
+  th2  <- n2pi(atan2(to[2]       - cy, to[1]       - cx))
+  th0  <- n2pi(atan2(origin[2]   - cy, origin[1]   - cx))
+
+  # Same arc-selection logic as .circumcircle_arc_svg:
+  # take the arc that avoids origin O.
+  delta_cw <- n2pi(th2 - th1)
+  cw_has_O <- n2pi(th0 - th1) <= delta_cw
+
+  if (cw_has_O) {
+    # Chosen arc is CCW (sweep=0); mid-angle goes backwards from th1
+    span   <- 2 * pi - delta_cw
+    th_mid <- n2pi(th1 - span / 2)
+  } else {
+    # Chosen arc is CW (sweep=1); mid-angle advances from th1
+    span   <- delta_cw
+    th_mid <- n2pi(th1 + span / 2)
+  }
+
+  c(cx + R * cos(th_mid), cy + R * sin(th_mid))
 }
