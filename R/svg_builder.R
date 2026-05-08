@@ -322,12 +322,13 @@
           else if (v != 1)
             lbl_txt <- format(v, trim = TRUE)
           if (!is.null(lbl_txt)) {
+            .lf <- if (directed) 0.4 else 0.5
             if (!is.null(arc) && !is.null(arc_origin)) {
-              lp <- .arc_label_pt(from, to, arc_origin)
+              lp <- .arc_label_pt(from, to, arc_origin, frac = .lf)
               lbl_x <- lp[1]; lbl_y <- lp[2]
             } else {
-              lbl_x <- (from[1] + to[1]) / 2
-              lbl_y <- (from[2] + to[2]) / 2
+              lbl_x <- from[1] + .lf * (to[1] - from[1])
+              lbl_y <- from[2] + .lf * (to[2] - from[2])
             }
             .emit('  <text x="', round(lbl_x, 1), '" y="', round(lbl_y, 1), '"',
                   ' text-anchor="middle" dominant-baseline="auto"',
@@ -435,12 +436,13 @@
             else if (v != 1)
               ov_lbl_txt <- format(v, trim = TRUE)
             if (!is.null(ov_lbl_txt)) {
+              .lf_ov <- if (directed) 0.4 else 0.5
               if (!is.null(arc_ov) && !is.null(arc_ov_origin)) {
-                lp_ov  <- .arc_label_pt(from, to, arc_ov_origin)
+                lp_ov  <- .arc_label_pt(from, to, arc_ov_origin, frac = .lf_ov)
                 ov_lbl_x <- lp_ov[1]; ov_lbl_y <- lp_ov[2]
               } else {
-                ov_lbl_x <- (from[1] + to[1]) / 2
-                ov_lbl_y <- (from[2] + to[2]) / 2
+                ov_lbl_x <- from[1] + .lf_ov * (to[1] - from[1])
+                ov_lbl_y <- from[2] + .lf_ov * (to[2] - from[2])
               }
               .emit('  <text x="', round(ov_lbl_x, 1), '" y="', round(ov_lbl_y, 1), '"',
                     ' text-anchor="middle" dominant-baseline="auto"',
@@ -790,14 +792,16 @@
   MARGIN  <- 2     # extra padding on all sides of each label bbox
 
   lbl_pt <- function(from, to, curvature, arc_flag) {
-    if (curvature == "straight" || !arc_flag) return((from + to) / 2)
+    .lf <- if (directed) 0.4 else 0.5
+    if (curvature == "straight" || !arc_flag)
+      return(from + .lf * (to - from))
     if (use_centroids && !is.null(centroids_sh) && nrow(centroids_sh) > 0L) {
       cmx <- (from[1] + to[1]) / 2;  cmy <- (from[2] + to[2]) / 2
       dst <- (centroids_sh$x - cmx)^2 + (centroids_sh$y - cmy)^2
       nc  <- centroids_sh[which.min(dst), , drop = FALSE]
-      return(.arc_label_pt(from, to, c(nc$x, nc$y)))
+      return(.arc_label_pt(from, to, c(nc$x, nc$y), frac = .lf))
     }
-    .arc_label_pt(from, to, c(rc_sx, rc_sy))
+    .arc_label_pt(from, to, c(rc_sx, rc_sy), frac = .lf)
   }
 
   get_lbl <- function(i, j, v, lmat) {
@@ -900,7 +904,7 @@
 #' @return Numeric(2) canvas coordinates of the arc midpoint.
 #' @keywords internal
 #' @noRd
-.arc_label_pt <- function(from, to, origin) {
+.arc_label_pt <- function(from, to, origin, frac = 0.5) {
   x1 <- from[1] - origin[1];  y1 <- from[2] - origin[2]
   x2 <- to[1]   - origin[1];  y2 <- to[2]   - origin[2]
 
@@ -926,13 +930,13 @@
   cw_has_O <- n2pi(th0 - th1) <= delta_cw
 
   if (cw_has_O) {
-    # Chosen arc is CCW (sweep=0); mid-angle goes backwards from th1
+    # Chosen arc is CCW (sweep=0); angle goes backwards from th1
     span   <- 2 * pi - delta_cw
-    th_mid <- n2pi(th1 - span / 2)
+    th_mid <- n2pi(th1 - frac * span)
   } else {
-    # Chosen arc is CW (sweep=1); mid-angle advances from th1
+    # Chosen arc is CW (sweep=1); angle advances from th1
     span   <- delta_cw
-    th_mid <- n2pi(th1 + span / 2)
+    th_mid <- n2pi(th1 + frac * span)
   }
 
   c(cx + R * cos(th_mid), cy + R * sin(th_mid))
