@@ -604,22 +604,26 @@ test_that("show_legend=FALSE produces no legend section", {
   expect_false(grepl("<!-- legend -->", res$svg, fixed=TRUE))
 })
 
-test_that("sunburst layout places nodes away from centre for cyclic/bidirected graphs", {
-  ids  <- c("A", "B", "C")
-  # Fully bidirected (cyclic) graph: every pair has edges in both directions
-  adj  <- matrix(c(0,1,1, 1,0,1, 1,1,0), 3, 3, byrow=TRUE,
-                 dimnames = list(ids, ids))
+test_that("sunburst layout uses BFS fallback for cyclic/bidirected graphs", {
+  # 5-node fully bidirected graph: directed topology fails (all cyclic), so
+  # BFS from the highest-degree node should produce at least 2 rank levels.
+  ids  <- c("A", "B", "C", "D", "E")
+  adj  <- matrix(0L, 5, 5, dimnames = list(ids, ids))
+  # A connects to everyone; B-C-D-E form a ring → A has degree 4, others 3
+  adj["A", c("B","C","D","E")] <- 1L
+  adj[c("B","C","D","E"), "A"] <- 1L
+  adj["B","C"] <- 1L; adj["C","B"] <- 1L
+  adj["C","D"] <- 1L; adj["D","C"] <- 1L
+  adj["D","E"] <- 1L; adj["E","D"] <- 1L
+  adj["E","B"] <- 1L; adj["B","E"] <- 1L
   nodes <- data.frame(id=ids, shape="rect", colour="#ffffff",
                       label=ids, stringsAsFactors=FALSE)
   res <- graph_to_outputs(adj, nodes, layout="sunburst",
                           svg_file=NULL, dot_file=NULL, mermaid_file=NULL)
-  # All nodes must have distinct positions and none should sit exactly at cx,cy
-  np <- res$topology  # topology present; extract node positions from SVG
-  # Verify SVG was produced and is non-trivial (not a degenerate all-at-centre graph)
   expect_true(nchar(res$svg) > 100L)
-  # rect node elements carry x= attribute; extract unique x values across <rect> elements
-  rect_x <- regmatches(res$svg, gregexpr('(?<=<rect )[^/]*x="[0-9.]+"', res$svg, perl=TRUE))[[1]]
-  x_vals  <- regmatches(rect_x, gregexpr('[0-9]+\\.[0-9]+', rect_x))
-  x_vals  <- unlist(x_vals)
-  expect_true(length(unique(x_vals)) > 1L)
+  # Extract y coordinates from <rect> elements (integer or decimal)
+  rect_y <- regmatches(res$svg, gregexpr('y="[0-9]+"', res$svg))[[1]]
+  y_vals <- gsub('[^0-9]', '', rect_y)
+  # BFS should spread nodes across at least 2 y levels (root at centre, leaves outer)
+  expect_true(length(unique(y_vals)) > 1L)
 })

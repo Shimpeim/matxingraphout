@@ -512,7 +512,7 @@ graph_to_outputs <- function(
   n <- nrow(adj_matrix)
   A <- adj_matrix != 0
 
-  # ── Rank via longest-path topological DP ─────────────────────────────────
+  # ── Rank: try directed longest-path DP first ─────────────────────────────
   in_copy  <- as.integer(colSums(A))
   queue    <- which(in_copy == 0L)
   topo_ord <- integer(0)
@@ -529,12 +529,43 @@ graph_to_outputs <- function(
     for (w in which(A[v, ]))
       rank[w] <- max(rank[w], rank[v] + 1L)
 
-  # ── Handle cyclic nodes (never entered topo_ord, so rank stays 0) ────────
-  in_deg <- as.integer(colSums(A))
-  cycles <- which(rank == 0L & in_deg > 0L)
-  if (length(cycles) > 0L) {
-    max_rank <- max(rank)
-    rank[cycles] <- max_rank + 1L
+  # ── Cycle fallback: BFS on undirected graph from highest-degree node ──────
+  # When directed topology yields no useful ranking (all nodes cyclic, i.e.
+  # rank is all-zero but in-degree > 0), switch to BFS levels on the
+  # symmetrised graph so cyclic/bidirected graphs still get a radial spread.
+  in_deg  <- as.integer(colSums(A))
+  n_cyclic <- sum(rank == 0L & in_deg > 0L)
+  if (n_cyclic > 0L) {
+    Au   <- A | t(A)                              # undirected adjacency
+    deg  <- rowSums(Au)
+    root <- which.max(deg)                        # highest-degree as BFS root
+    rank <- integer(n)
+    rank[] <- NA_integer_
+    rank[root] <- 0L
+    bfs_q <- root
+    while (length(bfs_q)) {
+      v     <- bfs_q[1L]; bfs_q <- bfs_q[-1L]
+      nbrs  <- which(Au[v, ] & is.na(rank))
+      rank[nbrs] <- rank[v] + 1L
+      bfs_q <- c(bfs_q, nbrs)
+    }
+    # Disconnected nodes: assign next rank after maximum
+    rank[is.na(rank)] <- max(rank, na.rm = TRUE) + 1L
+    # Rebuild A as the BFS spanning tree:
+    # edge i→j exists when j is one BFS level deeper than i
+    A <- Au & outer(rank, rank, function(r, s) s == r + 1L)
+    # Recompute topo_ord for the new DAG (original topo_ord was empty)
+    in_copy2 <- as.integer(colSums(A))
+    queue2   <- which(in_copy2 == 0L)
+    topo_ord <- integer(0)
+    while (length(queue2)) {
+      v        <- queue2[1L]; queue2 <- queue2[-1L]
+      topo_ord <- c(topo_ord, v)
+      for (w in which(A[v, ])) {
+        in_copy2[w] <- in_copy2[w] - 1L
+        if (in_copy2[w] == 0L) queue2 <- c(queue2, w)
+      }
+    }
   }
 
   # ── Leaf count per subtree (bottom-up in reverse topological order) ───────
