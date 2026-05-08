@@ -526,7 +526,10 @@ document.addEventListener('DOMContentLoaded', function() {
           fluidRow(
             column(6, numericInput("sunburst_max_depth",     "Sunburst max depth",    value = 3, min = 1, step = 1)),
             column(6, numericInput("sunburst_min_branching", "Sunburst min branching",value = 3, min = 0.5, step = 0.5))
-          )
+          ),
+          checkboxInput("sunburst_sort_children",
+                        "Centre largest child in each arc (zigzag sort)",
+                        value = TRUE)
         ),
 
         conditionalPanel("input.layout === 'auto' || input.layout === 'circular'",
@@ -1062,6 +1065,9 @@ server <- function(input, output, session) {
         updateTextInput(session, "default_stroke",      value = s$default_stroke)
       if (!is.null(s$svg_padding))
         updateNumericInput(session, "svg_padding",      value = as.numeric(s$svg_padding))
+      if (!is.null(s$sunburst_sort_children))
+        updateCheckboxInput(session, "sunburst_sort_children",
+          value = tolower(trimws(s$sunburst_sort_children)) %in% c("true","1","yes"))
       if (!is.null(s$show_legend))
         updateCheckboxInput(session, "show_legend",
           value = tolower(trimws(s$show_legend)) %in% c("true","1","yes"))
@@ -1357,6 +1363,9 @@ server <- function(input, output, session) {
       updateNumericInput(session, "sunburst_max_depth",     value = as.numeric(s$sunburst_max_depth))
     if (!is.null(s$sunburst_min_branching))
       updateNumericInput(session, "sunburst_min_branching", value = as.numeric(s$sunburst_min_branching))
+    if (!is.null(s$sunburst_sort_children))
+      updateCheckboxInput(session, "sunburst_sort_children",
+        value = tolower(trimws(s$sunburst_sort_children)) %in% c("true","1","yes"))
     if (!is.null(s$circle_r))
       updateNumericInput(session, "circle_r",  value = as.numeric(s$circle_r))
     if (!is.null(s$circle_cx))
@@ -1493,8 +1502,9 @@ server <- function(input, output, session) {
         default_fontcolour     = input$default_fontcolour,
         default_stroke         = input$default_stroke,
         svg_padding            = input$svg_padding,
-        sunburst_max_depth     = as.integer(input$sunburst_max_depth),
-        sunburst_min_branching = input$sunburst_min_branching,
+        sunburst_max_depth      = as.integer(input$sunburst_max_depth),
+        sunburst_min_branching  = input$sunburst_min_branching,
+        sunburst_sort_children  = isTRUE(input$sunburst_sort_children),
         circle_r               = circle_r,
         circle_cx              = circle_cx,
         circle_cy              = circle_cy,
@@ -1686,6 +1696,8 @@ server <- function(input, output, session) {
       "  node_props     = nodes,\n",
       "  directed       = ", tolower(as.character(isTRUE(input$directed))), ",\n",
       "  layout         = \"", input$layout, "\",\n",
+      if (!isTRUE(input$sunburst_sort_children))
+        "  sunburst_sort_children = FALSE,\n" else "",
       "  edge_colour    = \"", input$edge_colour, "\",\n",
       "  edge_width     = ", input$edge_width, ",\n",
       "  edge_curvature = \"", input$edge_curvature, "\",\n",

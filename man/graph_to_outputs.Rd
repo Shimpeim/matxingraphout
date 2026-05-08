@@ -27,6 +27,7 @@ graph_to_outputs(
   layout = "manual",
   sunburst_max_depth = 3L,
   sunburst_min_branching = 3,
+  sunburst_sort_children = TRUE,
   circle_r = NULL,
   circle_cx = NULL,
   circle_cy = NULL,
@@ -141,6 +142,12 @@ recommend \code{"sunburst"} over \code{"tree"}.  Default \code{3}.}
 \item{sunburst_min_branching}{Numeric. Minimum average branching factor
 (mean out-degree of non-leaf nodes) for \code{"auto"} to recommend \code{"sunburst"}.
 Default \code{3}.}
+
+\item{sunburst_sort_children}{Logical. When \code{TRUE} (default), siblings are
+reordered within each parent's angular slice so that the child with the
+largest subtree (most leaf descendants) occupies the central angle, with
+progressively smaller siblings fanning outward on both sides.  Set to
+\code{FALSE} to preserve adjacency-matrix column order.}
 
 \item{circle_r}{Radius of the circle in pixels when \code{layout = "circular"}.
 \code{NULL} (default) auto-sizes to \code{node_spacing * n / (2 * pi)} where

@@ -79,6 +79,11 @@
 #' @param sunburst_min_branching Numeric. Minimum average branching factor
 #'   (mean out-degree of non-leaf nodes) for `"auto"` to recommend `"sunburst"`.
 #'   Default `3`.
+#' @param sunburst_sort_children Logical. When `TRUE` (default), siblings are
+#'   reordered within each parent's angular slice so that the child with the
+#'   largest subtree (most leaf descendants) occupies the central angle, with
+#'   progressively smaller siblings fanning outward on both sides.  Set to
+#'   `FALSE` to preserve adjacency-matrix column order.
 #' @param circle_r Radius of the circle in pixels when `layout = "circular"`.
 #'   `NULL` (default) auto-sizes to `node_spacing * n / (2 * pi)` where
 #'   `node_spacing = max(default_width, default_height) * 1.5`.
@@ -242,6 +247,7 @@ graph_to_outputs <- function(
     layout                  = "manual",
     sunburst_max_depth      = 3L,
     sunburst_min_branching  = 3,
+    sunburst_sort_children  = TRUE,
     circle_r                = NULL,
     circle_cx               = NULL,
     circle_cy               = NULL,
@@ -403,7 +409,8 @@ graph_to_outputs <- function(
     node_props$y <- circle_cy + circle_r * sin(angles)
   } else if (layout == "sunburst") {
     node_props <- .layout_sunburst(adj_matrix, node_props,
-                                   default_width, default_height, svg_padding)
+                                   default_width, default_height, svg_padding,
+                                   sunburst_sort_children)
   } else if (layout == "tree") {
     node_props <- .layout_tree(adj_matrix, node_props,
                                default_width, default_height, svg_padding)
@@ -500,7 +507,8 @@ graph_to_outputs <- function(
 #' @keywords internal
 #' @noRd
 .layout_sunburst <- function(adj_matrix, node_props,
-                              default_width, default_height, svg_padding) {
+                              default_width, default_height, svg_padding,
+                              sort_children = TRUE) {
   n <- nrow(adj_matrix)
   A <- adj_matrix != 0
 
@@ -540,11 +548,31 @@ graph_to_outputs <- function(
   leaf_cnt[leaf_cnt == 0L] <- 1L
 
   # ── Angular ranges (top-down): each node gets a slice ∝ its leaf count ───
+  # Children are sorted so the node with the largest subtree sits at the
+  # centre of the parent's angular slice; smaller siblings fan outward on
+  # both sides (zigzag by leaf count, descending).
+  .zigzag_by_lc <- function(idx) {
+    m <- length(idx)
+    if (m <= 1L) return(idx)
+    ord <- idx[order(leaf_cnt[idx], decreasing = TRUE)]  # largest first
+    out <- integer(m)
+    mid <- ceiling(m / 2L)
+    r   <- mid + 1L
+    l   <- mid - 1L
+    out[mid] <- ord[1L]
+    for (k in seq(2L, m)) {
+      if (k %% 2L == 0L) { out[r] <- ord[k]; r <- r + 1L }
+      else                { out[l] <- ord[k]; l <- l - 1L }
+    }
+    out
+  }
+
   ang_start <- numeric(n);  ang_end <- numeric(n)
   roots <- which(colSums(A) == 0L)
   if (length(roots) == 0L) roots <- which(rank == min(rank))
   total_leaves <- sum(leaf_cnt[roots])
   if (total_leaves == 0L) { leaf_cnt[] <- 1L; total_leaves <- n }
+  if (sort_children) roots <- .zigzag_by_lc(roots)
   cur <- 0
   for (r in roots) {
     ang_start[r] <- cur
@@ -554,6 +582,7 @@ graph_to_outputs <- function(
   for (v in topo_ord) {
     ch <- which(A[v, ])
     if (!length(ch)) next
+    if (sort_children) ch <- .zigzag_by_lc(ch)
     cur <- ang_start[v]
     for (w in ch) {
       span         <- ang_end[v] - ang_start[v]
