@@ -700,6 +700,8 @@ graph_to_outputs <- function(
   }
 
   # ── x-slot: barycenter heuristic, rank by rank top-down ──────────────────
+  # x_slot stores a 1-based position within each rank; nodes are ordered by the
+  # mean x_slot of their direct parents (barycenter rule) to reduce edge crossings.
   x_slot  <- numeric(n)
   n_ranks <- max(rank) + 1L
   for (r in seq_len(n_ranks) - 1L) {
@@ -722,7 +724,17 @@ graph_to_outputs <- function(
   half_w  <- nw_max / 2
   half_h  <- nh_max / 2
 
-  node_props$x <- svg_padding + half_w + (x_slot - 1) * h_gap
+  # Centre every rank horizontally around the widest rank so the layout
+  # forms a pyramid: each rank's group of nodes is shifted right by
+  # (max_k - k_r) / 2 * h_gap so its midpoint aligns with the canvas centre.
+  rank_counts <- vapply(seq_len(n_ranks) - 1L,
+                        function(r) sum(rank == r), integer(1L))
+  max_k       <- max(rank_counts)
+  rank_offset <- (max_k - rank_counts) / 2 * h_gap   # per-rank left-padding
+
+  node_props$x <- svg_padding + half_w +
+                  (x_slot - 1L) * h_gap +
+                  rank_offset[rank + 1L]
   node_props$y <- svg_padding + half_h + rank * v_gap
   node_props
 }
