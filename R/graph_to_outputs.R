@@ -512,92 +512,93 @@ graph_to_outputs <- function(
 
 # ── Layout helpers ───────────────────────────────────────────────────────────
 
-#' @keywords internal
-#' @noRd
-.layout_sunburst <- function(adj_matrix, node_props,
-                              default_width, default_height, svg_padding,
-                              sort_children = TRUE, node_spacing = 1.0) {
-  n <- nrow(adj_matrix)
-  A <- adj_matrix != 0
+# Returns an integer vector of component IDs (1-based) for each node.
+.find_components <- function(A_und) {
+  n    <- nrow(A_und)
+  comp <- integer(n)
+  cid  <- 0L
+  for (s in seq_len(n)) {
+    if (comp[s] != 0L) next
+    cid <- cid + 1L
+    q   <- s
+    while (length(q)) {
+      v <- q[1L]; q <- q[-1L]
+      if (comp[v] != 0L) next
+      comp[v] <- cid
+      q <- c(q, which(A_und[v, ] & comp == 0L))
+    }
+  }
+  comp
+}
 
-  # ── Rank: try directed longest-path DP first ─────────────────────────────
-  in_copy  <- as.integer(colSums(A))
+# Rank a single-component subgraph (directed longest-path, then BFS fallback).
+# Returns list(rank, A) where A is the (possibly rebuilt BFS-tree) adjacency.
+.rank_component <- function(A_c) {
+  m <- nrow(A_c)
+  in_copy  <- as.integer(colSums(A_c))
   queue    <- which(in_copy == 0L)
   topo_ord <- integer(0)
   while (length(queue)) {
     v <- queue[1L]; queue <- queue[-1L]
     topo_ord <- c(topo_ord, v)
-    for (w in which(A[v, ])) {
+    for (w in which(A_c[v, ])) {
       in_copy[w] <- in_copy[w] - 1L
       if (in_copy[w] == 0L) queue <- c(queue, w)
     }
   }
-  rank <- integer(n)
+  rank_c <- integer(m)
   for (v in topo_ord)
-    for (w in which(A[v, ]))
-      rank[w] <- max(rank[w], rank[v] + 1L)
+    for (w in which(A_c[v, ]))
+      rank_c[w] <- max(rank_c[w], rank_c[v] + 1L)
 
-  # ── Cycle fallback: BFS on undirected graph from highest-degree node ──────
-  # When directed topology yields no useful ranking (all nodes cyclic, i.e.
-  # rank is all-zero but in-degree > 0), switch to BFS levels on the
-  # symmetrised graph so cyclic/bidirected graphs still get a radial spread.
-  in_deg  <- as.integer(colSums(A))
-  n_cyclic <- sum(rank == 0L & in_deg > 0L)
-  if (n_cyclic > 0L) {
-    Au   <- A | t(A)                              # undirected adjacency
-    deg  <- rowSums(Au)
-    root <- which.max(deg)                        # highest-degree as BFS root
-    rank <- integer(n)
-    rank[] <- NA_integer_
-    rank[root] <- 0L
+  in_deg_c <- as.integer(colSums(A_c))
+  if (any(rank_c == 0L & in_deg_c > 0L)) {
+    Au_c  <- A_c | t(A_c)
+    root  <- which.max(rowSums(Au_c))
+    rank_c[] <- NA_integer_
+    rank_c[root] <- 0L
     bfs_q <- root
     while (length(bfs_q)) {
-      v     <- bfs_q[1L]; bfs_q <- bfs_q[-1L]
-      nbrs  <- which(Au[v, ] & is.na(rank))
-      rank[nbrs] <- rank[v] + 1L
-      bfs_q <- c(bfs_q, nbrs)
+      v      <- bfs_q[1L]; bfs_q <- bfs_q[-1L]
+      nbrs   <- which(Au_c[v, ] & is.na(rank_c))
+      rank_c[nbrs] <- rank_c[v] + 1L
+      bfs_q  <- c(bfs_q, nbrs)
     }
-    # Disconnected nodes: assign next rank after maximum
-    rank[is.na(rank)] <- max(rank, na.rm = TRUE) + 1L
-    # Rebuild A as the BFS spanning tree:
-    # edge i→j exists when j is one BFS level deeper than i
-    A <- Au & outer(rank, rank, function(r, s) s == r + 1L)
-    # Recompute topo_ord for the new DAG (original topo_ord was empty)
-    in_copy2 <- as.integer(colSums(A))
-    queue2   <- which(in_copy2 == 0L)
-    topo_ord <- integer(0)
-    while (length(queue2)) {
-      v        <- queue2[1L]; queue2 <- queue2[-1L]
-      topo_ord <- c(topo_ord, v)
-      for (w in which(A[v, ])) {
-        in_copy2[w] <- in_copy2[w] - 1L
-        if (in_copy2[w] == 0L) queue2 <- c(queue2, w)
-      }
-    }
+    rank_c[is.na(rank_c)] <- max(rank_c, na.rm = TRUE) + 1L
+    A_c <- Au_c & outer(rank_c, rank_c, function(r, s) s == r + 1L)
   }
+  list(rank = rank_c, A = A_c)
+}
 
-  # ── Leaf count per subtree (bottom-up in reverse topological order) ───────
-  leaf_cnt <- integer(n)
-  leaf_cnt[rowSums(A) == 0L] <- 1L
-  for (v in rev(topo_ord)) {
-    ch <- which(A[v, ])
-    if (length(ch)) leaf_cnt[v] <- sum(leaf_cnt[ch])
-  }
-  # Nodes in cycles have no topo_ord entry → leaf_cnt still 0; treat as leaves
-  leaf_cnt[leaf_cnt == 0L] <- 1L
+#' @keywords internal
+#' @noRd
+.layout_sunburst <- function(adj_matrix, node_props,
+                              default_width, default_height, svg_padding,
+                              sort_children = TRUE, node_spacing = 1.0) {
+  n  <- nrow(adj_matrix)
+  A  <- adj_matrix != 0
+  Au <- A | t(A)
 
-  # ── Angular ranges (top-down): each node gets a slice ∝ its leaf count ───
-  # Children are sorted so the node with the largest subtree sits at the
-  # centre of the parent's angular slice; smaller siblings fan outward on
-  # both sides (zigzag by leaf count, descending).
-  .zigzag_by_lc <- function(idx) {
+  nw      <- if ("width"  %in% names(node_props)) node_props$width  else default_width
+  nh      <- if ("height" %in% names(node_props)) node_props$height else default_height
+  nw_max  <- if (any(is.finite(nw))) max(nw, na.rm = TRUE) else default_width
+  nh_max  <- if (any(is.finite(nh))) max(nh, na.rm = TRUE) else default_height
+  ring_gap <- max(nw_max, nh_max) * 2.2 * node_spacing
+  node_pad <- max(nw_max, nh_max)
+  comp_gap <- node_pad * 2.0 * node_spacing   # horizontal gap between components
+
+  comp    <- .find_components(Au)
+  n_comps <- max(comp)
+
+  x_out <- numeric(n)
+  y_out <- numeric(n)
+
+  # Zigzag helper (needs leaf_cnt in scope)
+  .zigzag <- function(idx, lc) {
     m <- length(idx)
     if (m <= 1L) return(idx)
-    ord <- idx[order(leaf_cnt[idx], decreasing = TRUE)]  # largest first
-    out <- integer(m)
-    mid <- ceiling(m / 2L)
-    r   <- mid + 1L
-    l   <- mid - 1L
+    ord <- idx[order(lc[idx], decreasing = TRUE)]
+    out <- integer(m); mid <- ceiling(m / 2L); r <- mid + 1L; l <- mid - 1L
     out[mid] <- ord[1L]
     for (k in seq(2L, m)) {
       if (k %% 2L == 0L) { out[r] <- ord[k]; r <- r + 1L }
@@ -606,47 +607,84 @@ graph_to_outputs <- function(
     out
   }
 
-  ang_start <- numeric(n);  ang_end <- numeric(n)
-  roots <- which(colSums(A) == 0L)
-  if (length(roots) == 0L) roots <- which(rank == min(rank))
-  total_leaves <- sum(leaf_cnt[roots])
-  if (total_leaves == 0L) { leaf_cnt[] <- 1L; total_leaves <- n }
-  if (sort_children) roots <- .zigzag_by_lc(roots)
-  cur <- 0
-  for (r in roots) {
-    ang_start[r] <- cur
-    ang_end[r]   <- cur + leaf_cnt[r] / total_leaves * 2 * pi
-    cur          <- ang_end[r]
+  # First pass: compute outer_r per component so we can set a shared cy
+  outer_rs <- numeric(n_comps)
+  for (ci in seq_len(n_comps)) {
+    idx   <- which(comp == ci)
+    rc    <- .rank_component(A[idx, idx, drop = FALSE])
+    outer_rs[ci] <- max(rc$rank) * ring_gap + node_pad
   }
-  for (v in topo_ord) {
-    ch <- which(A[v, ])
-    if (!length(ch)) next
-    if (sort_children) ch <- .zigzag_by_lc(ch)
-    cur <- ang_start[v]
-    for (w in ch) {
-      span         <- ang_end[v] - ang_start[v]
-      ang_start[w] <- cur
-      ang_end[w]   <- cur + leaf_cnt[w] / sum(leaf_cnt[ch]) * span
-      cur          <- ang_end[w]
+  max_outer_r <- max(outer_rs)
+  cy <- svg_padding + max_outer_r
+
+  # Second pass: full layout per component, placed side by side
+  cx_cursor <- svg_padding
+  for (ci in seq_len(n_comps)) {
+    idx   <- which(comp == ci)
+    m     <- length(idx)
+    rc    <- .rank_component(A[idx, idx, drop = FALSE])
+    rank_c <- rc$rank
+    A_c    <- rc$A
+
+    # Recompute topo_ord for this component's (possibly rebuilt) A_c
+    in_copy2 <- as.integer(colSums(A_c))
+    topo_c   <- integer(0)
+    queue2   <- which(in_copy2 == 0L)
+    while (length(queue2)) {
+      v <- queue2[1L]; queue2 <- queue2[-1L]
+      topo_c <- c(topo_c, v)
+      for (w in which(A_c[v, ])) {
+        in_copy2[w] <- in_copy2[w] - 1L
+        if (in_copy2[w] == 0L) queue2 <- c(queue2, w)
+      }
     }
+
+    leaf_c <- integer(m)
+    leaf_c[rowSums(A_c) == 0L] <- 1L
+    for (v in rev(topo_c)) {
+      ch <- which(A_c[v, ])
+      if (length(ch)) leaf_c[v] <- sum(leaf_c[ch])
+    }
+    leaf_c[leaf_c == 0L] <- 1L
+
+    roots_c <- which(colSums(A_c) == 0L)
+    if (!length(roots_c)) roots_c <- which(rank_c == min(rank_c))
+    total_lv <- sum(leaf_c[roots_c])
+    if (total_lv == 0L) { leaf_c[] <- 1L; total_lv <- m }
+    if (sort_children) roots_c <- .zigzag(roots_c, leaf_c)
+
+    ang_start_c <- numeric(m); ang_end_c <- numeric(m)
+    cur <- 0
+    for (r in roots_c) {
+      ang_start_c[r] <- cur
+      ang_end_c[r]   <- cur + leaf_c[r] / total_lv * 2 * pi
+      cur            <- ang_end_c[r]
+    }
+    for (v in topo_c) {
+      ch <- which(A_c[v, ])
+      if (!length(ch)) next
+      if (sort_children) ch <- .zigzag(ch, leaf_c)
+      cur <- ang_start_c[v]
+      for (w in ch) {
+        span           <- ang_end_c[v] - ang_start_c[v]
+        ang_start_c[w] <- cur
+        ang_end_c[w]   <- cur + leaf_c[w] / sum(leaf_c[ch]) * span
+        cur            <- ang_end_c[w]
+      }
+    }
+
+    outer_r_c <- outer_rs[ci]
+    cx_c      <- cx_cursor + outer_r_c
+    radii_c   <- rank_c * ring_gap
+    mid_ang_c <- (ang_start_c + ang_end_c) / 2 - pi / 2
+    x_out[idx] <- cx_c + radii_c * cos(mid_ang_c)
+    y_out[idx] <- cy   + radii_c * sin(mid_ang_c)
+
+    cx_cursor <- cx_cursor + 2 * outer_r_c + comp_gap
   }
 
-  # ── Radii: rank 0 = 0 (centre), each rank adds one ring ──────────────────
-  nw       <- if ("width"  %in% names(node_props)) node_props$width  else default_width
-  nh       <- if ("height" %in% names(node_props)) node_props$height else default_height
-  nw_max   <- if (any(is.finite(nw))) max(nw, na.rm = TRUE) else default_width
-  nh_max   <- if (any(is.finite(nh))) max(nh, na.rm = TRUE) else default_height
-  ring_gap <- max(nw_max, nh_max) * 2.2 * node_spacing
-  radii    <- rank * ring_gap
-
-  outer_r  <- max(radii) + max(nw_max, nh_max)
-  cx       <- svg_padding + outer_r
-  cy       <- svg_padding + outer_r
-
-  # ── Convert to Cartesian (start at 12 o'clock) ───────────────────────────
-  mid_ang      <- (ang_start + ang_end) / 2 - pi / 2
-  node_props$x <- cx + radii * cos(mid_ang)
-  node_props$y <- cy + radii * sin(mid_ang)
+  node_props$x <- x_out
+  node_props$y <- y_out
   node_props
 }
 
@@ -655,66 +693,10 @@ graph_to_outputs <- function(
 .layout_tree <- function(adj_matrix, node_props,
                          default_width, default_height, svg_padding,
                          node_spacing = 1.0) {
-  n <- nrow(adj_matrix)
-  A <- adj_matrix != 0
+  n  <- nrow(adj_matrix)
+  A  <- adj_matrix != 0
+  Au <- A | t(A)
 
-  # ── Rank: longest path from root via topological sort (Kahn + DP) ────────
-  in_copy  <- as.integer(colSums(A))
-  queue    <- which(in_copy == 0L)
-  topo_ord <- integer(0)
-  while (length(queue)) {
-    v <- queue[1L]; queue <- queue[-1L]
-    topo_ord <- c(topo_ord, v)
-    for (w in which(A[v, ])) {
-      in_copy[w] <- in_copy[w] - 1L
-      if (in_copy[w] == 0L) queue <- c(queue, w)
-    }
-  }
-  rank <- integer(n)
-  for (v in topo_ord)
-    for (w in which(A[v, ]))
-      rank[w] <- max(rank[w], rank[v] + 1L)
-
-  # ── Cycle fallback: BFS levels on undirected graph from highest-degree node
-  # When directed topology yields no useful ranking (some nodes cyclic, staying
-  # at rank 0 despite having in-degree > 0), fall back to BFS so the tree
-  # layout still produces multiple vertical levels.
-  in_deg   <- as.integer(colSums(A))
-  n_cyclic <- sum(rank == 0L & in_deg > 0L)
-  if (n_cyclic > 0L) {
-    Au   <- A | t(A)
-    deg  <- rowSums(Au)
-    root <- which.max(deg)
-    rank[] <- NA_integer_
-    rank[root] <- 0L
-    bfs_q <- root
-    while (length(bfs_q)) {
-      v     <- bfs_q[1L]; bfs_q <- bfs_q[-1L]
-      nbrs  <- which(Au[v, ] & is.na(rank))
-      rank[nbrs] <- rank[v] + 1L
-      bfs_q <- c(bfs_q, nbrs)
-    }
-    rank[is.na(rank)] <- max(rank, na.rm = TRUE) + 1L
-    # Rebuild A as BFS spanning tree for the barycenter x-slot pass
-    A <- Au & outer(rank, rank, function(r, s) s == r + 1L)
-  }
-
-  # ── x-slot: barycenter heuristic, rank by rank top-down ──────────────────
-  # x_slot stores a 1-based position within each rank; nodes are ordered by the
-  # mean x_slot of their direct parents (barycenter rule) to reduce edge crossings.
-  x_slot  <- numeric(n)
-  n_ranks <- max(rank) + 1L
-  for (r in seq_len(n_ranks) - 1L) {
-    members <- which(rank == r)
-    if (!length(members)) next
-    score <- vapply(members, function(v) {
-      preds <- which(A[, v] != 0)
-      if (!length(preds)) 0 else mean(x_slot[preds])
-    }, numeric(1L))
-    x_slot[members[order(score)]] <- seq_along(members)
-  }
-
-  # ── Convert to pixel coordinates ─────────────────────────────────────────
   nw      <- if ("width"  %in% names(node_props)) node_props$width  else default_width
   nh      <- if ("height" %in% names(node_props)) node_props$height else default_height
   nw_max  <- if (any(is.finite(nw))) max(nw, na.rm = TRUE) else default_width
@@ -723,19 +705,50 @@ graph_to_outputs <- function(
   v_gap   <- nh_max * 2.2 * node_spacing
   half_w  <- nw_max / 2
   half_h  <- nh_max / 2
+  comp_gap <- nw_max * 3.0 * node_spacing   # horizontal gap between components
 
-  # Centre every rank horizontally around the widest rank so the layout
-  # forms a pyramid: each rank's group of nodes is shifted right by
-  # (max_k - k_r) / 2 * h_gap so its midpoint aligns with the canvas centre.
-  rank_counts <- vapply(seq_len(n_ranks) - 1L,
-                        function(r) sum(rank == r), integer(1L))
-  max_k       <- max(rank_counts)
-  rank_offset <- (max_k - rank_counts) / 2 * h_gap   # per-rank left-padding
+  comp    <- .find_components(Au)
+  n_comps <- max(comp)
 
-  node_props$x <- svg_padding + half_w +
-                  (x_slot - 1L) * h_gap +
-                  rank_offset[rank + 1L]
-  node_props$y <- svg_padding + half_h + rank * v_gap
+  x_out <- numeric(n)
+  y_out <- numeric(n)
+  x_cursor <- svg_padding + half_w   # left edge for next component
+
+  for (ci in seq_len(n_comps)) {
+    idx  <- which(comp == ci)
+    m    <- length(idx)
+    rc   <- .rank_component(A[idx, idx, drop = FALSE])
+    rank_c <- rc$rank
+    A_c    <- rc$A
+
+    # x-slot: barycenter heuristic within this component
+    x_slot_c <- numeric(m)
+    n_ranks_c <- max(rank_c) + 1L
+    for (r in seq_len(n_ranks_c) - 1L) {
+      members_c <- which(rank_c == r)
+      if (!length(members_c)) next
+      score_c <- vapply(members_c, function(v) {
+        preds <- which(A_c[, v] != 0)
+        if (!length(preds)) 0 else mean(x_slot_c[preds])
+      }, numeric(1L))
+      x_slot_c[members_c[order(score_c)]] <- seq_along(members_c)
+    }
+
+    # Centre each rank (pyramid shape)
+    rank_counts_c <- vapply(seq_len(n_ranks_c) - 1L,
+                            function(r) sum(rank_c == r), integer(1L))
+    max_k_c       <- max(rank_counts_c)
+    rank_offset_c <- (max_k_c - rank_counts_c) / 2 * h_gap
+
+    x_out[idx] <- x_cursor + (x_slot_c - 1L) * h_gap + rank_offset_c[rank_c + 1L]
+    y_out[idx] <- svg_padding + half_h + rank_c * v_gap
+
+    comp_width <- (max_k_c - 1L) * h_gap
+    x_cursor   <- x_cursor + comp_width + comp_gap
+  }
+
+  node_props$x <- x_out
+  node_props$y <- y_out
   node_props
 }
 
