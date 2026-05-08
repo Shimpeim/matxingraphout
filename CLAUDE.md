@@ -5,9 +5,9 @@
 **matxingraphout** converts an adjacency matrix + node-property table into SVG,
 Graphviz DOT, and Mermaid flowchart outputs. No external R package dependencies.
 
-- Version: 0.3.5
+- Version: 0.3.8
 - GitHub: https://github.com/Shimpeim/matxingraphout
-- Test suite: 73 tests, all passing (run with `devtools::test()`)
+- Test suite: 86 tests, all passing (run with `devtools::test()`)
 
 ---
 
@@ -15,8 +15,9 @@ Graphviz DOT, and Mermaid flowchart outputs. No external R package dependencies.
 
 | File | Role |
 |---|---|
-| `R/graph_to_outputs.R` | Main exported function `graph_to_outputs()`; topology analysis; layout engines; DOT/Mermaid builders; calls SVG builder |
-| `R/svg_builder.R` | SVG rendering: node shapes, edge arcs, arrowheads, labels |
+| `R/graph_to_outputs.R` | Main exported function `graph_to_outputs()`; topology analysis; layout engines; calls SVG/DOT/Mermaid builders |
+| `R/svg_builder.R` | SVG rendering: node shapes, edge arcs, arrowheads, labels, legend; `.dasharray()`, `.ep_lookup()` helpers |
+| `R/format_builders.R` | DOT and Mermaid output builders; `.dot_build()`, `.mmd_build()`, `.dot_lt()` |
 | `man/graph_to_outputs.Rd` | Roxygen-generated docs (do not edit by hand) |
 | `tests/testthat/test-graph_to_outputs.R` | Full test suite |
 
@@ -71,7 +72,7 @@ Values: `"auto"` (default) or `"straight"`.
 
 ---
 
-## Function signature (v0.3.6)
+## Function signature (v0.3.8)
 
 ```r
 graph_to_outputs(
@@ -79,6 +80,7 @@ graph_to_outputs(
   node_props,
   directed           = TRUE,
   svg_file           = "graph.svg",
+  clean_svg_file     = "graph_clean.svg",  # 2nd SVG: centroid markers at opacity 0
   dot_file           = "graph.dot",
   mermaid_file       = "graph.mmd",
   svg_padding        = 40,
@@ -102,12 +104,21 @@ graph_to_outputs(
   edge_curvature         = "auto",   # "auto" or "straight"
   overlay_edge_curvature = "auto",
   centroids              = NULL,     # data.frame(label, x, y) or NULL → hub mode
-  show_centroids         = TRUE      # draw centroid crosshair markers in SVG
+  show_centroids         = TRUE,     # draw centroid crosshair markers in SVG
+  edge_labels            = NULL,     # character matrix — explicit labels for structural edges
+  overlay_edge_labels    = NULL,     # character matrix — explicit labels for overlay edges
+  edge_props             = NULL,     # data.frame(weight, colour, width, linetype, label)
+  overlay_edge_props     = NULL,     # same structure for overlay edges
+  show_legend            = FALSE,    # append SVG legend block below graph
+  legend_node_shape      = NULL,     # data.frame(shape, label) for legend shape section
+  legend_node_colour     = NULL,     # data.frame(colour, label) for legend colour section
+  legend_title           = "Legend"
 )
 ```
 
-Return value: invisible named list with `$svg`, `$dot`, `$mermaid`, `$topology`, `$canvas`
-(where `$canvas = list(xlo, ylo)` — canvas-to-original-coordinate offsets for Shiny).
+Return value: invisible named list with `$svg`, `$dot`, `$mermaid`, `$clean_svg`, `$topology`, `$canvas`
+- `$clean_svg` — same as `$svg` but centroid marker `<g>` elements have `opacity="0"` (for clean export)
+- `$canvas = list(xlo, ylo)` — canvas-to-original-coordinate offsets for Shiny
 
 ---
 
@@ -130,7 +141,34 @@ Return value: invisible named list with `$svg`, `$dot`, `$mermaid`, `$topology`,
 
 ---
 
-## Recent changes (v0.3.6)
+## Recent changes (v0.3.8)
+
+- Added `edge_props` parameter: `data.frame(weight, colour, width, linetype, label)`. Maps `adj_matrix` weight values to per-edge visual properties. Unmatched weights fall back to `edge_colour`/`edge_width`/solid. Linetype values: `"solid"` (default), `"dashed"`, `"dotted"`, `"longdash"`, `"twodash"`. Rendered in SVG (with correct `stroke-dasharray` and per-colour arrowhead markers), DOT, and Mermaid.
+- Added `overlay_edge_props` parameter: same structure, applied to overlay edges.
+- Added `show_legend` parameter (`FALSE`): when `TRUE`, appends an SVG legend block below the graph canvas. Legend sections: node shapes (`legend_node_shape`), node colours (`legend_node_colour`), edge types (auto-derived from `edge_props`). Canvas height extended by `leg_h` before emitting SVG header.
+- Added `legend_node_shape` parameter: `data.frame(shape, label)` for legend shape section.
+- Added `legend_node_colour` parameter: `data.frame(colour, label)` for legend colour section.
+- Added `legend_title` parameter (default `"Legend"`): title text for legend block.
+- `svg_builder.R`: added `.dasharray(lt)` helper (linetype → `stroke-dasharray`); added `.ep_lookup(ep, v, def_col, def_w, def_lt)` helper; extra arrowhead markers generated as `ah-COLORHEX` / `ahov-COLORHEX` for non-default colours.
+- `format_builders.R`: added `.dot_lt()` helper; per-edge DOT attrs (`color`, `penwidth`, `style`); non-solid Mermaid operator (`-.->`/`-.-`) for overlay.
+- Shiny app: new "Structural Edge Properties" and "Overlay Edge Properties" DT panels (columns: weight, colour, width, linetype, label); CSV import for both; Legend section in Settings with shape/colour DT tables and auto-populate buttons (`auto_ls`, `auto_lc`); `rcode_out` includes `edge_props` block and legend args.
+- Test suite: 86 tests (5 new edge_props/legend tests added).
+
+## Previous changes (v0.3.7)
+
+- Added `edge_labels` parameter: character matrix (same dims as `adj_matrix`). Non-NA/non-empty cell `[i,j]` provides an explicit text label for that structural edge; takes priority over the weight-based annotation (weight shown only when `edge_labels` is NULL or the cell is empty/NA and weight ≠ 1). Rendered in SVG, DOT, and Mermaid.
+- Added `overlay_edge_labels` parameter: same semantics for overlay edges.
+- Shiny app: new "Edge Labels" panel with text-input matrix grid (up to 15 nodes) and CSV import
+- Shiny app: `\n` typed in any node Label cell is converted to an actual newline before rendering (multi-line node labels); usage note shown in the Nodes panel
+- Shiny app: new "Import CSV" panel with five file inputs:
+  - **Node properties**: standard CSV with headers matching `node_props` column names
+  - **Adjacency / Overlay matrix**: first column = from-node IDs, remaining column headers = to-node IDs; numeric values
+  - **Edge labels**: same matrix CSV format but string cell values
+  - **Settings**: 2-column CSV (`Setting`, `Value`) for all layout/style parameters
+- Shiny app: `output$rcode_out` now includes the `edge_labels` matrix block when labels are defined
+- Test suite: 78 tests (5 new edge-label tests added)
+
+## Previous changes (v0.3.6)
 
 - Added `centroids` parameter to `graph_to_outputs()` and `.svg_build()`
 - When `centroids` is a non-empty data.frame(label, x, y): each edge picks its nearest centroid (by midpoint distance) as arc origin → per-region curvature
@@ -139,6 +177,8 @@ Return value: invisible named list with `$svg`, `$dot`, `$mermaid`, `$topology`,
 - Added `show_centroids = TRUE` parameter: draws red crosshair circle markers at centroid positions in the SVG (each with `data-centroid-idx` attribute for JS interaction)
 - Return value now includes `$canvas = list(xlo, ylo)` — the canvas coordinate offsets needed to convert SVG click positions back to original node-coordinate space
 - Shiny app: new "Centroids" DT panel with add/remove; R Code tab outputs centroid data.frame when defined
+- Added `clean_svg_file = "graph_clean.svg"` parameter: writes a second SVG identical to the main one but with all centroid markers at `opacity="0"` (via `gsub` on the SVG string); also returned as `$clean_svg` in the list
+- Shiny app: "Download SVG (no centroids)" button serves the clean SVG
 - Shiny app: interactive centroid placement via mouse click on rendered SVG
   - "Place centroid" button (toggle): click SVG → adds centroid row, draws temporary JS-side marker
   - "Remove centroid" button (toggle): click existing centroid marker → removes row
