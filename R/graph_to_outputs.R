@@ -675,6 +675,30 @@ graph_to_outputs <- function(
     for (w in which(A[v, ]))
       rank[w] <- max(rank[w], rank[v] + 1L)
 
+  # ── Cycle fallback: BFS levels on undirected graph from highest-degree node
+  # When directed topology yields no useful ranking (some nodes cyclic, staying
+  # at rank 0 despite having in-degree > 0), fall back to BFS so the tree
+  # layout still produces multiple vertical levels.
+  in_deg   <- as.integer(colSums(A))
+  n_cyclic <- sum(rank == 0L & in_deg > 0L)
+  if (n_cyclic > 0L) {
+    Au   <- A | t(A)
+    deg  <- rowSums(Au)
+    root <- which.max(deg)
+    rank[] <- NA_integer_
+    rank[root] <- 0L
+    bfs_q <- root
+    while (length(bfs_q)) {
+      v     <- bfs_q[1L]; bfs_q <- bfs_q[-1L]
+      nbrs  <- which(Au[v, ] & is.na(rank))
+      rank[nbrs] <- rank[v] + 1L
+      bfs_q <- c(bfs_q, nbrs)
+    }
+    rank[is.na(rank)] <- max(rank, na.rm = TRUE) + 1L
+    # Rebuild A as BFS spanning tree for the barycenter x-slot pass
+    A <- Au & outer(rank, rank, function(r, s) s == r + 1L)
+  }
+
   # ── x-slot: barycenter heuristic, rank by rank top-down ──────────────────
   x_slot  <- numeric(n)
   n_ranks <- max(rank) + 1L
