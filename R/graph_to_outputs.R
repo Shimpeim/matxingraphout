@@ -22,6 +22,10 @@
 #'     \item{fontsize}{*(optional)* Label font size in pixels.}
 #'     \item{fontcolour}{*(optional)* Label text colour. Also `"fontcolor"`.}
 #'     \item{stroke}{*(optional)* Node border colour.}
+#'     \item{hierarchy_rank}{*(optional, integer)* Override the automatically
+#'       computed rank (y-level) in `layout = "tree"`.  Non-NA values take
+#'       precedence over topology-derived rank; NA leaves rank computed
+#'       automatically.  Ignored for all other layouts.}
 #'   }
 #' @param directed Logical. `TRUE` (default) produces a directed graph with
 #'   arrowheads.
@@ -720,6 +724,16 @@ graph_to_outputs <- function(
     rc   <- .rank_component(A[idx, idx, drop = FALSE])
     rank_c <- rc$rank
     A_c    <- rc$A
+
+    # User-defined hierarchy_rank override
+    if ("hierarchy_rank" %in% names(node_props)) {
+      user_rank_c <- suppressWarnings(as.integer(node_props$hierarchy_rank[idx]))
+      if (any(!is.na(user_rank_c))) {
+        rank_c[!is.na(user_rank_c)] <- user_rank_c[!is.na(user_rank_c)]
+        Au_c <- A_c | t(A_c)
+        A_c  <- Au_c & outer(rank_c, rank_c, function(r, s) s == r + 1L)
+      }
+    }
 
     # x-slot: barycenter heuristic within this component
     x_slot_c <- numeric(m)

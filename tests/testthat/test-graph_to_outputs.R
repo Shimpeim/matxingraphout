@@ -627,3 +627,27 @@ test_that("sunburst layout uses BFS fallback for cyclic/bidirected graphs", {
   # BFS should spread nodes across at least 2 y levels (root at centre, leaves outer)
   expect_true(length(unique(y_vals)) > 1L)
 })
+
+test_that("hierarchy_rank overrides topology-derived rank in tree layout", {
+  # Chain A -> B -> C -> D, but force A and C to rank 0, B and D to rank 1
+  ids <- c("A", "B", "C", "D")
+  adj <- matrix(0L, 4, 4, dimnames = list(ids, ids))
+  adj["A", "B"] <- 1L; adj["B", "C"] <- 1L; adj["C", "D"] <- 1L
+  nodes <- data.frame(
+    id    = ids, label = ids, shape = "rect", colour = "#ffffff",
+    hierarchy_rank = c(0L, 1L, 0L, 1L),
+    stringsAsFactors = FALSE
+  )
+  res <- graph_to_outputs(adj, nodes, layout = "tree",
+                          svg_file = NULL, dot_file = NULL, mermaid_file = NULL)
+  expect_true(nchar(res$svg) > 100L)
+  # A and C should share the same y (rank 0); B and D the same y (rank 1)
+  np <- res$topology  # not what we need; check via node positions in SVG
+  # Positions are in node_props returned value — access via the function directly
+  np2 <- matxingraphout:::.layout_tree(adj, nodes, 100, 44, 40, 1.0)
+  yA <- np2$y[np2$id == "A"]; yC <- np2$y[np2$id == "C"]
+  yB <- np2$y[np2$id == "B"]; yD <- np2$y[np2$id == "D"]
+  expect_equal(yA, yC)
+  expect_equal(yB, yD)
+  expect_true(yB > yA)
+})

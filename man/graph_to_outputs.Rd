@@ -66,6 +66,10 @@ any other layout mode.}
 \item{fontsize}{\emph{(optional)} Label font size in pixels.}
 \item{fontcolour}{\emph{(optional)} Label text colour. Also \code{"fontcolor"}.}
 \item{stroke}{\emph{(optional)} Node border colour.}
+\item{hierarchy_rank}{\emph{(optional, integer)} Override the automatically
+computed rank (y-level) in \code{layout = "tree"}.  Non-NA values take
+precedence over topology-derived rank; NA leaves rank computed
+automatically.  Ignored for all other layouts.}
 }}
 
 \item{directed}{Logical. \code{TRUE} (default) produces a directed graph with

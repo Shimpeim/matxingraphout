@@ -5,17 +5,18 @@ library(matxingraphout)
 
 default_nodes <- function() {
   data.frame(
-    id         = c("A", "B", "C"),
-    label      = c("A", "B", "C"),
-    shape      = c("diamond", "rect", "rect"),
-    colour     = c("#fff8e1", "#e8f0fe", "#e8f0fe"),
-    x          = c(150,  50, 250),
-    y          = c( 60, 200, 200),
-    width      = c(NA_real_,      NA_real_,      NA_real_),
-    height     = c(NA_real_,      NA_real_,      NA_real_),
-    fontsize   = c(NA_real_,      NA_real_,      NA_real_),
-    fontcolour = c(NA_character_, NA_character_, NA_character_),
-    stroke     = c(NA_character_, NA_character_, NA_character_),
+    id             = c("A", "B", "C"),
+    label          = c("A", "B", "C"),
+    shape          = c("diamond", "rect", "rect"),
+    colour         = c("#fff8e1", "#e8f0fe", "#e8f0fe"),
+    x              = c(150,  50, 250),
+    y              = c( 60, 200, 200),
+    width          = c(NA_real_,      NA_real_,      NA_real_),
+    height         = c(NA_real_,      NA_real_,      NA_real_),
+    fontsize       = c(NA_real_,      NA_real_,      NA_real_),
+    fontcolour     = c(NA_character_, NA_character_, NA_character_),
+    stroke         = c(NA_character_, NA_character_, NA_character_),
+    hierarchy_rank = c(NA_integer_,   NA_integer_,   NA_integer_),
     stringsAsFactors = FALSE
   )
 }
@@ -762,9 +763,9 @@ server <- function(input, output, session) {
         dom        = "t",
         scrollX    = TRUE,
         columnDefs = list(
-          list(width = "56px",  targets = c(4L, 5L, 6L, 7L, 8L)),  # x y w h fontsize
-          list(width = "80px",  targets = c(2L, 3L)),               # shape, colour
-          list(width = "70px",  targets = c(9L, 10L))               # fontcolour, stroke
+          list(width = "56px",  targets = c(4L, 5L, 6L, 7L, 8L, 11L)),  # x y w h fontsize hierarchy_rank
+          list(width = "80px",  targets = c(2L, 3L)),                    # shape, colour
+          list(width = "70px",  targets = c(9L, 10L))                    # fontcolour, stroke
         )
       )
     )
@@ -799,6 +800,7 @@ server <- function(input, output, session) {
       id = new_id, label = new_id, shape = "rect", colour = "#e8f0fe",
       x = NA_real_, y = NA_real_, width = NA_real_, height = NA_real_,
       fontsize = NA_real_, fontcolour = NA_character_, stroke = NA_character_,
+      hierarchy_rank = NA_integer_,
       stringsAsFactors = FALSE
     ))
     sync_ids()
@@ -1685,6 +1687,10 @@ server <- function(input, output, session) {
           "  legend_node_colour = c(", paste0('"', names(lnc_arg), '" = "', lnc_arg, '"', collapse=", "), "),\n")
     }
 
+    hr_col <- if ("hierarchy_rank" %in% names(np) &&
+                  any(!is.na(np$hierarchy_rank)))
+      paste0("  hierarchy_rank = c(", fmtv(np$hierarchy_rank), "),\n") else ""
+
     paste0(
       "library(matxingraphout)\n\n",
       "ids <- c(", fmtv(ids, q = TRUE), ")\n\n",
@@ -1698,6 +1704,7 @@ server <- function(input, output, session) {
       "  colour    = c(", fmtv(np$colour,q = TRUE), "),\n",
       "  x         = c(", fmtv(np$x),    "),\n",
       "  y         = c(", fmtv(np$y),    "),\n",
+      hr_col,
       "  stringsAsFactors = FALSE\n)\n\n",
       cen_block,
       elbl_block,
