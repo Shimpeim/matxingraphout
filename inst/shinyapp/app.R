@@ -1383,11 +1383,16 @@ server <- function(input, output, session) {
 
     if (n < 2L) { rv$error <- "At least 2 nodes are required."; return() }
 
-    # Read structural matrix from inputs
+    # Read structural matrix from inputs; fall back to rv$adj when inputs are
+    # not yet registered (e.g. immediately after a CSV import repopulates the UI)
+    has_rv_adj <- !is.null(rv$adj) &&
+                  identical(dim(rv$adj), c(n, n)) &&
+                  identical(rownames(rv$adj), ids)
     adj <- matrix(0, n, n, dimnames = list(ids, ids))
     for (i in seq_len(n)) for (j in seq_len(n)) {
       v <- input[[paste0("adj_", i, "_", j)]]
       if (!is.null(v) && !is.na(v)) adj[i, j] <- v
+      else if (has_rv_adj)          adj[i, j] <- rv$adj[i, j]
     }
     rv$adj <- adj
 

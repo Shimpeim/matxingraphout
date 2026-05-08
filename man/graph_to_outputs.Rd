@@ -154,7 +154,7 @@ canvas with padding.}
 (\code{adj_matrix}).  Works for any layout mode:
 \describe{
 \item{\code{"auto"}}{(default) Draws each edge as the arc of the
-circumscribed circle of O–P1–P2 that avoids O, where O is the
+circumscribed circle of O--P1--P2 that avoids O, where O is the
 position of the node with the highest eigenvector centrality score
 (power-iteration on the symmetrised adjacency matrix).  This single
 global origin gives curvature that follows the structural centre of
@@ -174,7 +174,7 @@ An optional \code{label} column is accepted but not used in calculations.
 \describe{
 \item{When \code{NULL} (default)}{Arc curvature (for both structural and
 overlay edges) is anchored at the node with the highest eigenvector
-centrality score — the existing global-hub behaviour.}
+centrality score -- the existing global-hub behaviour.}
 \item{When non-empty}{Each edge independently selects the centroid
 nearest to its \strong{midpoint} (Euclidean distance) and uses that point
 as the arc origin O in the circumscribed-circle calculation.  This
@@ -239,7 +239,7 @@ Invisibly: a named list with elements \code{svg}, \code{dot}, \code{mermaid},
 source of each format.  \code{topology} is itself a named list with elements:
 \describe{
 \item{type}{Character. One of \code{"tree"}, \code{"forest (multiple trees)"},
-\code{"DAG — hierarchical"}, \code{"DAG — disconnected"},
+\code{"DAG -- hierarchical"}, \code{"DAG -- disconnected"},
 \code{"strongly connected (cyclic)"}, \code{"weakly connected (cyclic)"},
 \code{"disconnected (cyclic)"}.}
 \item{recommended_layout}{Character. The layout that \code{"auto"} would
@@ -259,7 +259,7 @@ from every other node following directed edges.}
 no edge connects two nodes of the same colour.}
 \item{is_tree}{Logical. DAG + weakly connected + single root +
 every non-root has in-degree 1.}
-\item{is_forest}{Logical. DAG + every node has in-degree ≤ 1.}
+\item{is_forest}{Logical. DAG + every node has in-degree <= 1.}
 \item{n_strongly_connected_components}{Integer. Number of SCCs
 (Kosaraju's algorithm).}
 \item{root_nodes}{Character vector of node IDs with in-degree 0.}

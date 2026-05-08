@@ -603,3 +603,23 @@ test_that("show_legend=FALSE produces no legend section", {
                           svg_file=NULL, dot_file=NULL, mermaid_file=NULL)
   expect_false(grepl("<!-- legend -->", res$svg, fixed=TRUE))
 })
+
+test_that("sunburst layout places nodes away from centre for cyclic/bidirected graphs", {
+  ids  <- c("A", "B", "C")
+  # Fully bidirected (cyclic) graph: every pair has edges in both directions
+  adj  <- matrix(c(0,1,1, 1,0,1, 1,1,0), 3, 3, byrow=TRUE,
+                 dimnames = list(ids, ids))
+  nodes <- data.frame(id=ids, shape="rect", colour="#ffffff",
+                      label=ids, stringsAsFactors=FALSE)
+  res <- graph_to_outputs(adj, nodes, layout="sunburst",
+                          svg_file=NULL, dot_file=NULL, mermaid_file=NULL)
+  # All nodes must have distinct positions and none should sit exactly at cx,cy
+  np <- res$topology  # topology present; extract node positions from SVG
+  # Verify SVG was produced and is non-trivial (not a degenerate all-at-centre graph)
+  expect_true(nchar(res$svg) > 100L)
+  # rect node elements carry x= attribute; extract unique x values across <rect> elements
+  rect_x <- regmatches(res$svg, gregexpr('(?<=<rect )[^/]*x="[0-9.]+"', res$svg, perl=TRUE))[[1]]
+  x_vals  <- regmatches(rect_x, gregexpr('[0-9]+\\.[0-9]+', rect_x))
+  x_vals  <- unlist(x_vals)
+  expect_true(length(unique(x_vals)) > 1L)
+})

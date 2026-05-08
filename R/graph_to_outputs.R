@@ -90,7 +90,7 @@
 #'   (`adj_matrix`).  Works for any layout mode:
 #'   \describe{
 #'     \item{`"auto"`}{(default) Draws each edge as the arc of the
-#'       circumscribed circle of O–P1–P2 that avoids O, where O is the
+#'       circumscribed circle of O--P1--P2 that avoids O, where O is the
 #'       position of the node with the highest eigenvector centrality score
 #'       (power-iteration on the symmetrised adjacency matrix).  This single
 #'       global origin gives curvature that follows the structural centre of
@@ -108,7 +108,7 @@
 #'   \describe{
 #'     \item{When `NULL` (default)}{Arc curvature (for both structural and
 #'       overlay edges) is anchored at the node with the highest eigenvector
-#'       centrality score — the existing global-hub behaviour.}
+#'       centrality score -- the existing global-hub behaviour.}
 #'     \item{When non-empty}{Each edge independently selects the centroid
 #'       nearest to its **midpoint** (Euclidean distance) and uses that point
 #'       as the arc origin O in the circumscribed-circle calculation.  This
@@ -163,7 +163,7 @@
 #'   source of each format.  `topology` is itself a named list with elements:
 #'   \describe{
 #'     \item{type}{Character. One of `"tree"`, `"forest (multiple trees)"`,
-#'       `"DAG — hierarchical"`, `"DAG — disconnected"`,
+#'       `"DAG -- hierarchical"`, `"DAG -- disconnected"`,
 #'       `"strongly connected (cyclic)"`, `"weakly connected (cyclic)"`,
 #'       `"disconnected (cyclic)"`.}
 #'     \item{recommended_layout}{Character. The layout that `"auto"` would
@@ -183,7 +183,7 @@
 #'       no edge connects two nodes of the same colour.}
 #'     \item{is_tree}{Logical. DAG + weakly connected + single root +
 #'       every non-root has in-degree 1.}
-#'     \item{is_forest}{Logical. DAG + every node has in-degree ≤ 1.}
+#'     \item{is_forest}{Logical. DAG + every node has in-degree <= 1.}
 #'     \item{n_strongly_connected_components}{Integer. Number of SCCs
 #'       (Kosaraju's algorithm).}
 #'     \item{root_nodes}{Character vector of node IDs with in-degree 0.}
@@ -521,6 +521,14 @@ graph_to_outputs <- function(
     for (w in which(A[v, ]))
       rank[w] <- max(rank[w], rank[v] + 1L)
 
+  # ── Handle cyclic nodes (never entered topo_ord, so rank stays 0) ────────
+  in_deg <- as.integer(colSums(A))
+  cycles <- which(rank == 0L & in_deg > 0L)
+  if (length(cycles) > 0L) {
+    max_rank <- max(rank)
+    rank[cycles] <- max_rank + 1L
+  }
+
   # ── Leaf count per subtree (bottom-up in reverse topological order) ───────
   leaf_cnt <- integer(n)
   leaf_cnt[rowSums(A) == 0L] <- 1L
@@ -528,11 +536,15 @@ graph_to_outputs <- function(
     ch <- which(A[v, ])
     if (length(ch)) leaf_cnt[v] <- sum(leaf_cnt[ch])
   }
+  # Nodes in cycles have no topo_ord entry → leaf_cnt still 0; treat as leaves
+  leaf_cnt[leaf_cnt == 0L] <- 1L
 
   # ── Angular ranges (top-down): each node gets a slice ∝ its leaf count ───
   ang_start <- numeric(n);  ang_end <- numeric(n)
-  roots       <- which(colSums(A) == 0L)
+  roots <- which(colSums(A) == 0L)
+  if (length(roots) == 0L) roots <- which(rank == min(rank))
   total_leaves <- sum(leaf_cnt[roots])
+  if (total_leaves == 0L) { leaf_cnt[] <- 1L; total_leaves <- n }
   cur <- 0
   for (r in roots) {
     ang_start[r] <- cur
@@ -813,7 +825,7 @@ graph_to_outputs <- function(
 #'
 #' Computes the principal eigenvector of the symmetrised adjacency matrix
 #' A_sym = (A != 0) | t(A != 0) using up to 200 iterations of power iteration
-#' with L∞ normalisation.  Converges when the maximum element-wise change
+#' with L-inf normalisation.  Converges when the maximum element-wise change
 #' between successive iterates falls below 1e-9.
 #'
 #' For disconnected graphs only the largest connected component receives
