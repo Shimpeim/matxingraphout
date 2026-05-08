@@ -525,7 +525,7 @@ document.addEventListener('DOMContentLoaded', function() {
         conditionalPanel(
           "input.layout !== 'manual'",
           sliderInput("node_spacing", "Node spacing",
-                      min = 0.2, max = 3.0, value = 1.0, step = 0.1, width = "100%")
+                      min = 0.01, max = 3.0, value = 1.0, step = 0.01, width = "100%")
         ),
 
         conditionalPanel("input.layout === 'manual'",

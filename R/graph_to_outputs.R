@@ -86,8 +86,8 @@
 #' @param node_spacing Positive numeric. Global spacing multiplier applied to
 #'   all automatic layouts (`"circular"`, `"sunburst"`, `"tree"`,
 #'   `"bipartite"`).  Values greater than 1 spread nodes further apart;
-#'   values less than 1 (e.g. `0.6`) pack them closer together.
-#'   Default `1.0`.  Has no effect on `"manual"` layout.
+#'   values less than 1 pack them closer together (e.g. `0.05` for very dense
+#'   graphs).  Default `1.0`.  Has no effect on `"manual"` layout.
 #' @param sunburst_sort_children Logical. When `TRUE` (default), siblings are
 #'   reordered within each parent's angular slice so that the child with the
 #'   largest subtree (most leaf descendants) occupies the central angle, with
