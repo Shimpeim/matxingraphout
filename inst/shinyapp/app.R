@@ -72,6 +72,10 @@ parse_node_csv <- function(path) {
   if (!"colour" %in% names(df)) df$colour <- "#e8f0fe"
   for (col in c("x","y","width","height","fontsize","fontcolour","stroke"))
     if (!col %in% names(df)) df[[col]] <- NA
+  if ("hierarchy_rank" %in% names(df))
+    df$hierarchy_rank <- suppressWarnings(as.integer(df$hierarchy_rank))
+  else
+    df$hierarchy_rank <- NA_integer_
   df
 }
 
@@ -1121,6 +1125,7 @@ server <- function(input, output, session) {
                 id = new_rows, label = new_rows, shape = "rect", colour = "#e8f0fe",
                 x = NA_real_, y = NA_real_, width = NA_real_, height = NA_real_,
                 fontsize = NA_real_, fontcolour = NA_character_, stroke = NA_character_,
+                hierarchy_rank = NA_integer_,
                 stringsAsFactors = FALSE)
               kept <- rbind(kept, extra)
             }
@@ -1243,6 +1248,7 @@ server <- function(input, output, session) {
           id = new_rows, label = new_rows, shape = "rect", colour = "#e8f0fe",
           x = NA_real_, y = NA_real_, width = NA_real_, height = NA_real_,
           fontsize = NA_real_, fontcolour = NA_character_, stroke = NA_character_,
+          hierarchy_rank = NA_integer_,
           stringsAsFactors = FALSE)
         kept <- rbind(kept, extra)
       }
