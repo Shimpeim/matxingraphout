@@ -53,6 +53,7 @@
   rc_sx         <- if (has_rc) radial_center[1] - xlo else 0
   rc_sy         <- if (has_rc) radial_center[2] - ylo else 0
 
+  centroids_sh  <- NULL
   use_centroids <- !is.null(centroids) && nrow(centroids) > 0L
   if (use_centroids) {
     centroids_sh <- data.frame(
