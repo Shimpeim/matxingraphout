@@ -65,6 +65,42 @@
   use_arc    <- !use_centroids && has_rc && edge_curvature         != "straight"
   use_arc_ov <- !use_centroids && has_rc && overlay_edge_curvature != "straight"
 
+  # ── Auto-scale canvas to eliminate label overlaps ─────────────────────────
+  # Iteratively expand the node layout (scale canvas coords from centroid)
+  # until no edge label overlaps any other label or any node bounding box.
+  # Stops after 15 iterations (~15 % growth per step → up to ~8× expansion).
+  for (.auto_iter in seq_len(15L)) {
+    .boxes <- .collect_label_bboxes(
+      np, adj, adj_ov, edge_labels, overlay_edge_labels,
+      edge_curvature, overlay_edge_curvature,
+      use_centroids, centroids_sh, use_arc, use_arc_ov,
+      rc_sx, rc_sy, directed)
+    if (!.has_label_overlaps(.boxes)) break
+
+    .STEP <- 1.15
+    .cx   <- mean(np$sx);  .cy <- mean(np$sy)
+    np$sx <- .cx + (np$sx - .cx) * .STEP
+    np$sy <- .cy + (np$sy - .cy) * .STEP
+
+    # Re-anchor so canvas left/top edge stays at pad
+    .dx <- min(np$sx - np$width  / 2) - pad
+    .dy <- min(np$sy - np$height / 2) - pad
+    np$sx <- np$sx - .dx
+    np$sy <- np$sy - .dy
+
+    if (use_centroids && !is.null(centroids_sh) && nrow(centroids_sh) > 0L) {
+      centroids_sh$x <- .cx + (centroids_sh$x - .cx) * .STEP - .dx
+      centroids_sh$y <- .cy + (centroids_sh$y - .cy) * .STEP - .dy
+    }
+    if (has_rc) {
+      rc_sx <- .cx + (rc_sx - .cx) * .STEP - .dx
+      rc_sy <- .cy + (rc_sy - .cy) * .STEP - .dy
+    }
+
+    W <- max(np$sx + np$width  / 2) + pad
+    H <- max(np$sy + np$height / 2) + pad
+  }
+
   # ── Edge-props style lookup ──────────────────────────────────────────────────
   # Returns list(colour, width, linetype) for a given weight value
   .ep_lookup <- function(ep, v, def_col, def_w, def_lt = "solid") {
@@ -728,6 +764,122 @@
     large_arc = if (span > pi) 1L else 0L,   # SVG large-arc-flag
     sweep     = sweep
   )
+}
+
+
+# ── Label-overlap detection helpers ───────────────────────────────────────────
+
+# Collect bounding boxes for all edge labels (label bboxes) and all nodes
+# (node bboxes) in canvas coordinates.  Returns list(labels, nodes) where
+# each element is a list of c(x1,y1,x2,y2) rectangles.
+#
+# Label bbox uses dominant-baseline="auto" dy="-4" convention: the text sits
+# above its y-coordinate, so the box spans [y-LABEL_H, y].
+#
+# @keywords internal
+# @noRd
+.collect_label_bboxes <- function(np, adj, adj_ov,
+                                   edge_labels, overlay_edge_labels,
+                                   edge_curvature, overlay_edge_curvature,
+                                   use_centroids, centroids_sh,
+                                   use_arc, use_arc_ov,
+                                   rc_sx, rc_sy, directed) {
+  n       <- nrow(adj)
+  CHAR_W  <- 5.5   # approx px per character at 10 px font
+  LABEL_H <- 14    # total label height (ascender + descender + dy offset)
+  MARGIN  <- 2     # extra padding on all sides of each label bbox
+
+  lbl_pt <- function(from, to, curvature, arc_flag) {
+    if (curvature == "straight" || !arc_flag) return((from + to) / 2)
+    if (use_centroids && !is.null(centroids_sh) && nrow(centroids_sh) > 0L) {
+      cmx <- (from[1] + to[1]) / 2;  cmy <- (from[2] + to[2]) / 2
+      dst <- (centroids_sh$x - cmx)^2 + (centroids_sh$y - cmy)^2
+      nc  <- centroids_sh[which.min(dst), , drop = FALSE]
+      return(.arc_label_pt(from, to, c(nc$x, nc$y)))
+    }
+    .arc_label_pt(from, to, c(rc_sx, rc_sy))
+  }
+
+  get_lbl <- function(i, j, v, lmat) {
+    if (!is.null(lmat) && i <= nrow(lmat) && j <= ncol(lmat) &&
+        !is.na(lmat[i, j]) && nzchar(trimws(lmat[i, j])))
+      return(trimws(lmat[i, j]))
+    if (v != 1) return(format(v, trim = TRUE))
+    NULL
+  }
+
+  label_bboxes <- list()
+  add_lbl <- function(x, y, text) {
+    w  <- nchar(text) * CHAR_W + 2 * MARGIN
+    label_bboxes[[length(label_bboxes) + 1L]] <<-
+      c(x - w / 2, y - LABEL_H - MARGIN, x + w / 2, y + MARGIN)
+  }
+
+  # Structural edge labels
+  done <- matrix(FALSE, n, n)
+  for (i in seq_len(n)) for (j in seq_len(n)) {
+    v <- adj[i, j]
+    if (v == 0 || (!directed && done[j, i]) || i == j) next
+    done[i, j] <- TRUE
+    lbl <- get_lbl(i, j, v, edge_labels)
+    if (is.null(lbl)) next
+    from <- .boundary_pt(np$sx[i], np$sy[i],
+                          np$sx[j] - np$sx[i], np$sy[j] - np$sy[i],
+                          np$shape[i], np$width[i], np$height[i])
+    to   <- .boundary_pt(np$sx[j], np$sy[j],
+                          np$sx[i] - np$sx[j], np$sy[i] - np$sy[j],
+                          np$shape[j], np$width[j], np$height[j])
+    pt   <- lbl_pt(from, to, edge_curvature, use_arc)
+    add_lbl(pt[1], pt[2], lbl)
+  }
+
+  # Overlay edge labels
+  if (!is.null(adj_ov)) {
+    done_ov <- matrix(FALSE, n, n)
+    for (i in seq_len(n)) for (j in seq_len(n)) {
+      v <- adj_ov[i, j]
+      if (v == 0 || (!directed && done_ov[j, i]) || i == j) next
+      done_ov[i, j] <- TRUE
+      lbl <- get_lbl(i, j, v, overlay_edge_labels)
+      if (is.null(lbl)) next
+      from <- .boundary_pt(np$sx[i], np$sy[i],
+                            np$sx[j] - np$sx[i], np$sy[j] - np$sy[i],
+                            np$shape[i], np$width[i], np$height[i])
+      to   <- .boundary_pt(np$sx[j], np$sy[j],
+                            np$sx[i] - np$sx[j], np$sy[i] - np$sy[j],
+                            np$shape[j], np$width[j], np$height[j])
+      pt   <- lbl_pt(from, to, overlay_edge_curvature, use_arc_ov)
+      add_lbl(pt[1], pt[2], lbl)
+    }
+  }
+
+  # Node bounding boxes
+  node_bboxes <- lapply(seq_len(n), function(i)
+    c(np$sx[i] - np$width[i]  / 2,  np$sy[i] - np$height[i] / 2,
+      np$sx[i] + np$width[i]  / 2,  np$sy[i] + np$height[i] / 2))
+
+  list(labels = label_bboxes, nodes = node_bboxes)
+}
+
+
+# TRUE iff any label bbox overlaps any other label bbox or any node bbox.
+# @keywords internal
+# @noRd
+.has_label_overlaps <- function(boxes) {
+  lbls  <- boxes$labels
+  nodes <- boxes$nodes
+  if (length(lbls) == 0L) return(FALSE)
+
+  ov1d <- function(a1, a2, b1, b2) a1 < b2 && a2 > b1
+  ov2d <- function(a, b)
+    ov1d(a[1], a[3], b[1], b[3]) && ov1d(a[2], a[4], b[2], b[4])
+
+  for (lb in lbls) for (nb in nodes)  if (ov2d(lb, nb)) return(TRUE)
+  nl <- length(lbls)
+  if (nl > 1L)
+    for (i in seq_len(nl - 1L)) for (j in seq(i + 1L, nl))
+      if (ov2d(lbls[[i]], lbls[[j]])) return(TRUE)
+  FALSE
 }
 
 
