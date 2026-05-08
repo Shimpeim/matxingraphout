@@ -27,6 +27,7 @@ graph_to_outputs(
   layout = "manual",
   sunburst_max_depth = 3L,
   sunburst_min_branching = 3,
+  node_spacing = 1,
   sunburst_sort_children = TRUE,
   circle_r = NULL,
   circle_cx = NULL,
@@ -142,6 +143,12 @@ recommend \code{"sunburst"} over \code{"tree"}.  Default \code{3}.}
 \item{sunburst_min_branching}{Numeric. Minimum average branching factor
 (mean out-degree of non-leaf nodes) for \code{"auto"} to recommend \code{"sunburst"}.
 Default \code{3}.}
+
+\item{node_spacing}{Positive numeric. Global spacing multiplier applied to
+all automatic layouts (\code{"circular"}, \code{"sunburst"}, \code{"tree"},
+\code{"bipartite"}).  Values greater than 1 spread nodes further apart;
+values less than 1 (e.g. \code{0.6}) pack them closer together.
+Default \code{1.0}.  Has no effect on \code{"manual"} layout.}
 
 \item{sunburst_sort_children}{Logical. When \code{TRUE} (default), siblings are
 reordered within each parent's angular slice so that the child with the

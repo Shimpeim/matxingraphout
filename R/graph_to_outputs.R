@@ -79,6 +79,11 @@
 #' @param sunburst_min_branching Numeric. Minimum average branching factor
 #'   (mean out-degree of non-leaf nodes) for `"auto"` to recommend `"sunburst"`.
 #'   Default `3`.
+#' @param node_spacing Positive numeric. Global spacing multiplier applied to
+#'   all automatic layouts (`"circular"`, `"sunburst"`, `"tree"`,
+#'   `"bipartite"`).  Values greater than 1 spread nodes further apart;
+#'   values less than 1 (e.g. `0.6`) pack them closer together.
+#'   Default `1.0`.  Has no effect on `"manual"` layout.
 #' @param sunburst_sort_children Logical. When `TRUE` (default), siblings are
 #'   reordered within each parent's angular slice so that the child with the
 #'   largest subtree (most leaf descendants) occupies the central angle, with
@@ -247,6 +252,7 @@ graph_to_outputs <- function(
     layout                  = "manual",
     sunburst_max_depth      = 3L,
     sunburst_min_branching  = 3,
+    node_spacing            = 1.0,
     sunburst_sort_children  = TRUE,
     circle_r                = NULL,
     circle_cx               = NULL,
@@ -398,9 +404,9 @@ graph_to_outputs <- function(
     message("Auto layout selected: '", layout, "'")
   }
   if (layout == "circular") {
-    node_spacing <- max(default_width, default_height) * 1.5
+    circ_spacing <- max(default_width, default_height) * 1.5 * node_spacing
     if (is.null(circle_r))
-      circle_r <- node_spacing * n / (2 * pi)
+      circle_r <- circ_spacing * n / (2 * pi)
     half_node <- max(default_width, default_height) / 2
     if (is.null(circle_cx)) circle_cx <- circle_r + svg_padding + half_node
     if (is.null(circle_cy)) circle_cy <- circle_r + svg_padding + half_node
@@ -410,13 +416,15 @@ graph_to_outputs <- function(
   } else if (layout == "sunburst") {
     node_props <- .layout_sunburst(adj_matrix, node_props,
                                    default_width, default_height, svg_padding,
-                                   sunburst_sort_children)
+                                   sunburst_sort_children, node_spacing)
   } else if (layout == "tree") {
     node_props <- .layout_tree(adj_matrix, node_props,
-                               default_width, default_height, svg_padding)
+                               default_width, default_height, svg_padding,
+                               node_spacing)
   } else if (layout == "bipartite") {
     node_props <- .layout_bipartite(adj_matrix, node_props,
-                                    default_width, default_height, svg_padding)
+                                    default_width, default_height, svg_padding,
+                                    node_spacing)
   }
 
   # Canvas extents — returned so interactive clients can convert between
@@ -508,7 +516,7 @@ graph_to_outputs <- function(
 #' @noRd
 .layout_sunburst <- function(adj_matrix, node_props,
                               default_width, default_height, svg_padding,
-                              sort_children = TRUE) {
+                              sort_children = TRUE, node_spacing = 1.0) {
   n <- nrow(adj_matrix)
   A <- adj_matrix != 0
 
@@ -628,7 +636,7 @@ graph_to_outputs <- function(
   nh       <- if ("height" %in% names(node_props)) node_props$height else default_height
   nw_max   <- if (any(is.finite(nw))) max(nw, na.rm = TRUE) else default_width
   nh_max   <- if (any(is.finite(nh))) max(nh, na.rm = TRUE) else default_height
-  ring_gap <- max(nw_max, nh_max) * 2.2
+  ring_gap <- max(nw_max, nh_max) * 2.2 * node_spacing
   radii    <- rank * ring_gap
 
   outer_r  <- max(radii) + max(nw_max, nh_max)
@@ -645,7 +653,8 @@ graph_to_outputs <- function(
 #' @keywords internal
 #' @noRd
 .layout_tree <- function(adj_matrix, node_props,
-                         default_width, default_height, svg_padding) {
+                         default_width, default_height, svg_padding,
+                         node_spacing = 1.0) {
   n <- nrow(adj_matrix)
   A <- adj_matrix != 0
 
@@ -684,8 +693,8 @@ graph_to_outputs <- function(
   nh      <- if ("height" %in% names(node_props)) node_props$height else default_height
   nw_max  <- if (any(is.finite(nw))) max(nw, na.rm = TRUE) else default_width
   nh_max  <- if (any(is.finite(nh))) max(nh, na.rm = TRUE) else default_height
-  h_gap   <- nw_max * 1.6
-  v_gap   <- nh_max * 2.2
+  h_gap   <- nw_max * 1.6 * node_spacing
+  v_gap   <- nh_max * 2.2 * node_spacing
   half_w  <- nw_max / 2
   half_h  <- nh_max / 2
 
@@ -697,7 +706,8 @@ graph_to_outputs <- function(
 #' @keywords internal
 #' @noRd
 .layout_bipartite <- function(adj_matrix, node_props,
-                               default_width, default_height, svg_padding) {
+                               default_width, default_height, svg_padding,
+                               node_spacing = 1.0) {
   n     <- nrow(adj_matrix)
   A_und <- (adj_matrix != 0) | t(adj_matrix != 0)
 
@@ -718,10 +728,12 @@ graph_to_outputs <- function(
   # ── Column placement ──────────────────────────────────────────────────────
   nw      <- if ("width"  %in% names(node_props)) node_props$width  else default_width
   nh      <- if ("height" %in% names(node_props)) node_props$height else default_height
-  h_gap   <- max(nh, na.rm = TRUE) * 1.8
-  col_gap <- max(nw, na.rm = TRUE) * 5.0
-  half_w  <- max(nw, na.rm = TRUE) / 2
-  half_h  <- max(nh, na.rm = TRUE) / 2
+  nw_max  <- if (any(is.finite(nw))) max(nw, na.rm = TRUE) else default_width
+  nh_max  <- if (any(is.finite(nh))) max(nh, na.rm = TRUE) else default_height
+  h_gap   <- nh_max * 1.8 * node_spacing
+  col_gap <- nw_max * 5.0 * node_spacing
+  half_w  <- nw_max / 2
+  half_h  <- nh_max / 2
 
   left  <- which(color == 0L)
   right <- which(color == 1L)

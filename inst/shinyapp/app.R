@@ -517,6 +517,12 @@ document.addEventListener('DOMContentLoaded', function() {
             selected = "auto"))
         ),
 
+        conditionalPanel(
+          "input.layout !== 'manual'",
+          sliderInput("node_spacing", "Node spacing",
+                      min = 0.2, max = 3.0, value = 1.0, step = 0.1, width = "100%")
+        ),
+
         conditionalPanel("input.layout === 'manual'",
           tags$p(style = "color:#e53e3e; font-size:12px; margin-bottom:6px",
             "\u26a0 Manual layout requires x and y columns in the Nodes table.")
@@ -1065,6 +1071,8 @@ server <- function(input, output, session) {
         updateTextInput(session, "default_stroke",      value = s$default_stroke)
       if (!is.null(s$svg_padding))
         updateNumericInput(session, "svg_padding",      value = as.numeric(s$svg_padding))
+      if (!is.null(s$node_spacing))
+        updateSliderInput(session, "node_spacing", value = as.numeric(s$node_spacing))
       if (!is.null(s$sunburst_sort_children))
         updateCheckboxInput(session, "sunburst_sort_children",
           value = tolower(trimws(s$sunburst_sort_children)) %in% c("true","1","yes"))
@@ -1363,6 +1371,8 @@ server <- function(input, output, session) {
       updateNumericInput(session, "sunburst_max_depth",     value = as.numeric(s$sunburst_max_depth))
     if (!is.null(s$sunburst_min_branching))
       updateNumericInput(session, "sunburst_min_branching", value = as.numeric(s$sunburst_min_branching))
+    if (!is.null(s$node_spacing))
+      updateSliderInput(session, "node_spacing", value = as.numeric(s$node_spacing))
     if (!is.null(s$sunburst_sort_children))
       updateCheckboxInput(session, "sunburst_sort_children",
         value = tolower(trimws(s$sunburst_sort_children)) %in% c("true","1","yes"))
@@ -1502,6 +1512,7 @@ server <- function(input, output, session) {
         default_fontcolour     = input$default_fontcolour,
         default_stroke         = input$default_stroke,
         svg_padding            = input$svg_padding,
+        node_spacing            = if (!is.null(input$node_spacing)) input$node_spacing else 1.0,
         sunburst_max_depth      = as.integer(input$sunburst_max_depth),
         sunburst_min_branching  = input$sunburst_min_branching,
         sunburst_sort_children  = isTRUE(input$sunburst_sort_children),
@@ -1696,6 +1707,8 @@ server <- function(input, output, session) {
       "  node_props     = nodes,\n",
       "  directed       = ", tolower(as.character(isTRUE(input$directed))), ",\n",
       "  layout         = \"", input$layout, "\",\n",
+      if (!is.null(input$node_spacing) && input$node_spacing != 1.0)
+        paste0("  node_spacing   = ", input$node_spacing, ",\n") else "",
       if (!isTRUE(input$sunburst_sort_children))
         "  sunburst_sort_children = FALSE,\n" else "",
       "  edge_colour    = \"", input$edge_colour, "\",\n",
