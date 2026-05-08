@@ -159,12 +159,18 @@ ui <- fluidPage(
 
 var mode = null;
 var xlo = 0, ylo = 0;
+var _reattach_timer = null;
+function scheduleReattach(delay) {
+  clearTimeout(_reattach_timer);
+  _reattach_timer = setTimeout(function() { _reattach_timer = null; reattach(); }, delay || 60);
+}
 
 Shiny.addCustomMessageHandler('canvas_offset', function(msg) {
   xlo = msg.xlo;
   ylo = msg.ylo;
   updateRulers();
-  setTimeout(function(){ reattach(); }, 60);
+  // Delay reattach to give Shiny time to flush the SVG DOM update.
+  scheduleReattach(200);
 });
 
 $(document).on('click', '#btn-add-centroid', function() {
@@ -387,16 +393,10 @@ function updateRulers() {
   }
 }
 
-var _observer = new MutationObserver(function(mutations) {
-  for (var i = 0; i < mutations.length; i++) {
-    var added = mutations[i].addedNodes;
-    for (var j = 0; j < added.length; j++) {
-      if (added[j].nodeName && added[j].nodeName.toLowerCase() === 'svg') {
-        setTimeout(function(){ reattach(); }, 60);
-        return;
-      }
-    }
-  }
+// Fire reattach whenever the SVG display area changes (e.g. after Shiny renderUI
+// updates the output wrapper div that contains the SVG).
+var _observer = new MutationObserver(function() {
+  scheduleReattach(60);
 });
 
 document.addEventListener('DOMContentLoaded', function() {

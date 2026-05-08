@@ -698,16 +698,16 @@
 #'
 #' The circumscribed circle passes through O = (0, 0), P1 = (x1, y1), and
 #' P2 = (x2, y2).  Its centre (cxc, cyc) satisfies three equal-distance
-#' constraints.  Setting |centre − O|² = |centre − P1|² and
-#' |centre − O|² = |centre − P2|² yields a 2×2 linear system whose solution
+#' constraints.  Setting |centre - O|^2 = |centre - P1|^2 and
+#' |centre - O|^2 = |centre - P2|^2 yields a 2x2 linear system whose solution
 #' (via Cramer's rule) is:
 #'
-#'   denom = 2 * (x1*y2 − y1*x2)           # twice the signed area of the triangle
-#'   cxc   = (y2*|P1|² − y1*|P2|²) / denom
-#'   cyc   = (x1*|P2|² − x2*|P1|²) / denom
-#'   R     = |centre − O| = sqrt(cxc² + cyc²)
+#'   denom = 2 * (x1*y2 - y1*x2)           # twice the signed area of the triangle
+#'   cxc   = (y2*|P1|^2 - y1*|P2|^2) / denom
+#'   cyc   = (x1*|P2|^2 - x2*|P1|^2) / denom
+#'   R     = |centre - O| = sqrt(cxc^2 + cyc^2)
 #'
-#' When `denom ≈ 0` the three points are collinear (no finite circle exists);
+#' When `denom ~= 0` the three points are collinear (no finite circle exists);
 #' the function returns `NULL` and the caller draws a straight line instead.
 #'
 #' ## Arc-flag selection
@@ -716,12 +716,12 @@
 #' the other does not.  We always want the arc that avoids O.
 #'
 #' 1. Express the angles of P1, P2, and O on the circle as th1, th2, th0.
-#' 2. The clockwise arc from P1 to P2 spans `delta_cw = (th2 − th1) mod 2π`
+#' 2. The clockwise arc from P1 to P2 spans `delta_cw = (th2 - th1) mod 2*pi`
 #'    radians.
-#' 3. O lies on the CW arc iff `(th0 − th1) mod 2π ≤ delta_cw`.
+#' 3. O lies on the CW arc iff `(th0 - th1) mod 2*pi <= delta_cw`.
 #' 4. If O is on the CW arc, take the CCW arc (SVG sweep-flag = 0).
 #'    Otherwise take the CW arc (SVG sweep-flag = 1).
-#' 5. SVG large-arc-flag = 1 when the chosen arc spans more than π radians.
+#' 5. SVG large-arc-flag = 1 when the chosen arc spans more than pi radians.
 #'
 #' @keywords internal
 #' @noRd
@@ -898,9 +898,9 @@
 #' the chord midpoint when O, from, to are collinear (same condition that
 #' makes `.circumcircle_arc_svg()` return NULL).
 #'
-#' @param from  Numeric(2) — start endpoint in canvas coords.
-#' @param to    Numeric(2) — end endpoint in canvas coords.
-#' @param origin Numeric(2) — arc origin O in canvas coords
+#' @param from  Numeric(2) -- start endpoint in canvas coords.
+#' @param to    Numeric(2) -- end endpoint in canvas coords.
+#' @param origin Numeric(2) -- arc origin O in canvas coords
 #'   (nearest centroid or hub node).
 #' @return Numeric(2) canvas coordinates of the arc midpoint.
 #' @keywords internal
