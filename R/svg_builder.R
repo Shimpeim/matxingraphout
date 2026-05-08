@@ -2,6 +2,18 @@
 # None of these are exported; users interact only via graph_to_outputs().
 
 
+# Convert linetype name to SVG stroke-dasharray value
+.dasharray <- function(lt) {
+  switch(tolower(trimws(as.character(lt))),
+    dashed   = "6,3",
+    dotted   = "2,3",
+    longdash = "12,5",
+    twodash  = "10,4,2,4",
+    ""   # solid or unknown: no dasharray
+  )
+}
+
+
 # ── Main SVG builder ──────────────────────────────────────────────────────────
 
 #' @keywords internal
@@ -13,7 +25,12 @@
                        centroids = NULL,
                        edge_curvature = "auto",
                        overlay_edge_curvature = "auto",
-                       show_centroids = FALSE) {
+                       show_centroids = FALSE,
+                       edge_labels = NULL,
+                       overlay_edge_labels = NULL,
+                       edge_props = NULL, overlay_edge_props = NULL,
+                       show_legend = FALSE, legend_node_shape = NULL,
+                       legend_node_colour = NULL, legend_title = "Legend") {
   n <- nrow(adj)
 
   # Canvas extents from node bounding boxes + padding
@@ -48,30 +65,133 @@
   use_arc    <- !use_centroids && has_rc && edge_curvature         != "straight"
   use_arc_ov <- !use_centroids && has_rc && overlay_edge_curvature != "straight"
 
+  # ── Edge-props style lookup ──────────────────────────────────────────────────
+  # Returns list(colour, width, linetype) for a given weight value
+  .ep_lookup <- function(ep, v, def_col, def_w, def_lt = "solid") {
+    if (!is.null(ep)) {
+      idx <- which(ep$weight == v)
+      if (length(idx) > 0L) {
+        row <- ep[idx[1L], ]
+        col <- if ("colour"   %in% names(row) && !is.na(row$colour))   row$colour   else def_col
+        w   <- if ("width"    %in% names(row) && !is.na(row$width))    row$width    else def_w
+        lt  <- if ("linetype" %in% names(row) && !is.na(row$linetype)) row$linetype else def_lt
+        return(list(colour = col, width = w, linetype = lt))
+      }
+    }
+    list(colour = def_col, width = def_w, linetype = def_lt)
+  }
+
+  # Collect all unique colours that will appear on structural edges
+  # (needed to generate per-colour arrowhead markers)
+  all_struct_cols <- ecol
+  if (!is.null(edge_props) && "colour" %in% names(edge_props))
+    all_struct_cols <- unique(c(ecol, na.omit(edge_props$colour)))
+  all_ov_cols <- ovcol
+  if (!is.null(adj_ov) && !is.null(overlay_edge_props) && "colour" %in% names(overlay_edge_props))
+    all_ov_cols <- unique(c(ovcol, na.omit(overlay_edge_props$colour)))
+
+  # ── Pre-compute legend items ─────────────────────────────────────────────────
+  LEG_PAD   <- 12L   # padding around legend box
+  LEG_ROW_H <- 24L   # height per legend row
+  LEG_W     <- 230L  # legend box width
+  LEG_TITLE_H <- 22L # legend title row height
+  LEG_ICON_W  <- 36L # icon area width in each row
+  LEG_GAP     <- 10L # gap between graph and legend box
+
+  legend_items <- list()
+  if (isTRUE(show_legend)) {
+    if (!is.null(legend_node_shape) && length(legend_node_shape) > 0L) {
+      legend_items <- c(legend_items, list(list(section = "Shapes")))
+      for (sh in names(legend_node_shape))
+        legend_items <- c(legend_items,
+          list(list(type = "shape", shape = sh,
+                    label = as.character(legend_node_shape[[sh]]))))
+    }
+    if (!is.null(legend_node_colour) && length(legend_node_colour) > 0L) {
+      legend_items <- c(legend_items, list(list(section = "Node colours")))
+      for (co in names(legend_node_colour))
+        legend_items <- c(legend_items,
+          list(list(type = "colour", colour = co,
+                    label = as.character(legend_node_colour[[co]]))))
+    }
+    if (!is.null(edge_props) && "label" %in% names(edge_props)) {
+      edge_rows <- edge_props[!is.na(edge_props$label) & nzchar(trimws(edge_props$label)), ]
+      if (nrow(edge_rows) > 0L) {
+        legend_items <- c(legend_items, list(list(section = "Edge types")))
+        for (k in seq_len(nrow(edge_rows))) {
+          es <- .ep_lookup(edge_props, edge_rows$weight[k], ecol, ew)
+          legend_items <- c(legend_items,
+            list(list(type = "edge", colour = es$colour, width = es$width,
+                      linetype = es$linetype, label = trimws(edge_rows$label[k]))))
+        }
+      }
+    }
+    if (!is.null(overlay_edge_props) && "label" %in% names(overlay_edge_props)) {
+      ov_rows <- overlay_edge_props[!is.na(overlay_edge_props$label) &
+                                     nzchar(trimws(overlay_edge_props$label)), ]
+      if (nrow(ov_rows) > 0L) {
+        if (!any(vapply(legend_items, function(x) isTRUE(x$section == "Edge types"), logical(1L))))
+          legend_items <- c(legend_items, list(list(section = "Edge types")))
+        for (k in seq_len(nrow(ov_rows))) {
+          es <- .ep_lookup(overlay_edge_props, ov_rows$weight[k], ovcol, ovw)
+          legend_items <- c(legend_items,
+            list(list(type = "edge", colour = es$colour, width = es$width,
+                      linetype = es$linetype, label = trimws(ov_rows$label[k]))))
+        }
+      }
+    }
+  }
+  n_legend <- length(legend_items)
+  # count only non-section rows for height
+  n_data_rows <- if (n_legend == 0L) 0L else
+    sum(vapply(legend_items, function(x) is.null(x$section), logical(1L)))
+  n_sec_rows  <- n_legend - n_data_rows
+  leg_content_h <- if (n_legend > 0L)
+    LEG_TITLE_H + n_data_rows * LEG_ROW_H + n_sec_rows * 18L + LEG_PAD * 2L
+  else 0L
+  H_total <- H + if (leg_content_h > 0L) leg_content_h + LEG_GAP else 0L
+
   buf <- character(0)
   .emit <- function(...) buf <<- c(buf, paste0(...))
 
   # ── Header ─────────────────────────────────────────────────────────────────
   .emit('<?xml version="1.0" encoding="UTF-8"?>')
   .emit('<svg xmlns="http://www.w3.org/2000/svg"',
-        ' width="',  round(W), '" height="', round(H), '"',
-        ' viewBox="0 0 ', round(W), ' ', round(H), '">')
+        ' width="',  round(W), '" height="', round(H_total), '"',
+        ' viewBox="0 0 ', round(W), ' ', round(H_total), '">')
 
   if (directed) {
     .emit('  <defs>')
+    # Default structural arrowhead
     .emit('    <marker id="arrowhead" markerWidth="10" markerHeight="7"',
-          ' refX="9" refY="3.5" orient="auto">')
-    .emit('      <polygon points="0 0,10 3.5,0 7" fill="', ecol, '"/>')
-    .emit('    </marker>')
-    if (!is.null(adj_ov))
+          ' refX="9" refY="3.5" orient="auto">',
+          '<polygon points="0 0,10 3.5,0 7" fill="', ecol, '"/></marker>')
+    # Extra structural arrowheads for non-default colours from edge_props
+    for (col in setdiff(all_struct_cols, ecol)) {
+      safe_id <- gsub("[^A-Za-z0-9]", "", col)
+      .emit('    <marker id="ah-', safe_id, '" markerWidth="10" markerHeight="7"',
+            ' refX="9" refY="3.5" orient="auto">',
+            '<polygon points="0 0,10 3.5,0 7" fill="', col, '"/></marker>')
+    }
+    if (!is.null(adj_ov)) {
+      # Default overlay arrowhead
       .emit('    <marker id="arrowhead-ov" markerWidth="10" markerHeight="7"',
             ' refX="9" refY="3.5" orient="auto">',
             '<polygon points="0 0,10 3.5,0 7" fill="', ovcol, '"/></marker>')
+      # Extra overlay arrowheads
+      for (col in setdiff(all_ov_cols, ovcol)) {
+        safe_id <- gsub("[^A-Za-z0-9]", "", col)
+        .emit('    <marker id="ahov-', safe_id, '" markerWidth="10" markerHeight="7"',
+              ' refX="9" refY="3.5" orient="auto">',
+              '<polygon points="0 0,10 3.5,0 7" fill="', col, '"/></marker>')
+      }
+    }
     .emit('  </defs>')
   }
 
-  edge_css <- sprintf('stroke="%s" stroke-width="%g" fill="none"', ecol, ew)
-  mar_attr <- if (directed) ' marker-end="url(#arrowhead)"' else ''
+  # Default edge CSS (used when edge_props has no match for a weight)
+  edge_css_default <- sprintf('stroke="%s" stroke-width="%g" fill="none"', ecol, ew)
+  mar_attr_default <- if (directed) ' marker-end="url(#arrowhead)"' else ''
 
   # ── Edges ──────────────────────────────────────────────────────────────────
   .emit('  <!-- edges -->')
@@ -93,7 +213,7 @@
               ' C ', round(ox, 1), ',', round(ay - ry, 1),
               ' ',  round(ox, 1), ',', round(oy, 1),
               ' ',  round(ax + rx, 1), ',', round(ay, 1), '"',
-              mar_attr, ' ', edge_css, '/>')
+              mar_attr_default, ' ', edge_css_default, '/>')
       } else {
         from <- .boundary_pt(ax, ay, bx - ax, by - ay,
                              np$shape[i], np$width[i], np$height[i])
@@ -107,6 +227,22 @@
             ux <- (to[1] - from[1]) / d;  uy <- (to[2] - from[2]) / d
             to <- to - c(ux, uy) * 2
           }
+        }
+
+        # Per-edge visual style
+        es       <- .ep_lookup(edge_props, v, ecol, ew, "solid")
+        da       <- .dasharray(es$linetype)
+        edge_css_this <- sprintf('stroke="%s" stroke-width="%g" fill="none"%s',
+                                 es$colour, es$width,
+                                 if (nzchar(da)) paste0(' stroke-dasharray="', da, '"') else "")
+        if (directed) {
+          safe_col <- gsub("[^A-Za-z0-9]", "", es$colour)
+          mar_attr_this <- if (identical(es$colour, ecol))
+            ' marker-end="url(#arrowhead)"'
+          else
+            paste0(' marker-end="url(#ah-', safe_col, ')"')
+        } else {
+          mar_attr_this <- ''
         }
 
         arc <- if (edge_curvature == "straight") {
@@ -130,22 +266,31 @@
                 ' A ', arc$R, ',', arc$R, ' 0 ',
                 arc$large_arc, ',', arc$sweep,
                 ' ', round(to[1], 1), ',', round(to[2], 1), '"',
-                mar_attr, ' ', edge_css, '/>')
+                mar_attr_this, ' ', edge_css_this, '/>')
         } else {
           .emit('  <line x1="', round(from[1], 1), '" y1="', round(from[2], 1),
                 '" x2="', round(to[1], 1), '" y2="', round(to[2], 1), '"',
-                mar_attr, ' ', edge_css, '/>')
+                mar_attr_this, ' ', edge_css_this, '/>')
         }
 
-        # Annotate non-binary edge weights
-        if (v != 1) {
-          mx <- (from[1] + to[1]) / 2
-          my <- (from[2] + to[2]) / 2
-          .emit('  <text x="', round(mx, 1), '" y="', round(my, 1), '"',
-                ' text-anchor="middle" dominant-baseline="auto"',
-                ' dy="-4" font-size="10" fill="', ecol, '"',
-                ' font-family="Helvetica,Arial,sans-serif">',
-                .xml_esc(format(v, trim = TRUE)), '</text>')
+        # Edge label
+        {
+          lbl_txt <- NULL
+          if (!is.null(edge_labels) &&
+              !is.na(edge_labels[i, j]) &&
+              nzchar(trimws(edge_labels[i, j])))
+            lbl_txt <- trimws(edge_labels[i, j])
+          else if (v != 1)
+            lbl_txt <- format(v, trim = TRUE)
+          if (!is.null(lbl_txt)) {
+            mx <- (from[1] + to[1]) / 2
+            my <- (from[2] + to[2]) / 2
+            .emit('  <text x="', round(mx, 1), '" y="', round(my, 1), '"',
+                  ' text-anchor="middle" dominant-baseline="auto"',
+                  ' dy="-4" font-size="10" fill="', es$colour, '"',
+                  ' font-family="Helvetica,Arial,sans-serif">',
+                  .xml_esc(lbl_txt), '</text>')
+          }
         }
       }
 
@@ -155,10 +300,6 @@
 
   # ── Overlay edges (drawn after structural edges, before nodes) ─────────────
   if (!is.null(adj_ov)) {
-    ov_dash  <- if (ovstyle == "dashed") ' stroke-dasharray="5,3"' else ''
-    ov_css   <- sprintf('stroke="%s" stroke-width="%g" fill="none"%s',
-                        ovcol, ovw, ov_dash)
-    ov_mar   <- if (directed) ' marker-end="url(#arrowhead-ov)"' else ''
     .emit('  <!-- overlay edges -->')
     done_ov  <- matrix(FALSE, n, n)
     for (i in seq_len(n)) {
@@ -170,11 +311,16 @@
         if (i == j) {
           rx <- np$width[i]  / 2;  ry <- np$height[i] / 2
           ox <- ax + rx * 1.4;    oy <- ay - ry * 1.4
+          # Self-loop uses global overlay defaults
+          ov_dash_sl  <- if (ovstyle == "dashed") ' stroke-dasharray="5,3"' else ''
+          ov_css_sl   <- sprintf('stroke="%s" stroke-width="%g" fill="none"%s',
+                                 ovcol, ovw, ov_dash_sl)
+          ov_mar_sl   <- if (directed) ' marker-end="url(#arrowhead-ov)"' else ''
           .emit('  <path d="M ', round(ax + rx * .5, 1), ',', round(ay - ry, 1),
                 ' C ', round(ox, 1), ',', round(ay - ry, 1),
                 ' ',  round(ox, 1), ',', round(oy, 1),
                 ' ',  round(ax + rx, 1), ',', round(ay, 1), '"',
-                ov_mar, ' ', ov_css, '/>')
+                ov_mar_sl, ' ', ov_css_sl, '/>')
         } else {
           from <- .boundary_pt(ax, ay, bx - ax, by - ay,
                                np$shape[i], np$width[i], np$height[i])
@@ -187,6 +333,23 @@
               to <- to - c(ux, uy) * 2
             }
           }
+
+          # Per-overlay-edge visual style
+          ovs     <- .ep_lookup(overlay_edge_props, v, ovcol, ovw, ovstyle)
+          ov_da   <- .dasharray(ovs$linetype)
+          ov_css_this <- sprintf('stroke="%s" stroke-width="%g" fill="none"%s',
+                                 ovs$colour, ovs$width,
+                                 if (nzchar(ov_da)) paste0(' stroke-dasharray="', ov_da, '"') else "")
+          if (directed) {
+            safe_ov_col <- gsub("[^A-Za-z0-9]", "", ovs$colour)
+            ov_mar_this <- if (identical(ovs$colour, ovcol))
+              ' marker-end="url(#arrowhead-ov)"'
+            else
+              paste0(' marker-end="url(#ahov-', safe_ov_col, ')"')
+          } else {
+            ov_mar_this <- ''
+          }
+
           arc_ov <- if (overlay_edge_curvature == "straight") {
             NULL
           } else if (use_centroids) {
@@ -208,14 +371,34 @@
                   ' A ', arc_ov$R, ',', arc_ov$R, ' 0 ',
                   arc_ov$large_arc, ',', arc_ov$sweep,
                   ' ', round(to[1], 1), ',', round(to[2], 1), '"',
-                  ov_mar, ' ', ov_css, '/>')
+                  ov_mar_this, ' ', ov_css_this, '/>')
           } else {
             .emit('  <line x1="', round(from[1], 1), '" y1="', round(from[2], 1),
                   '" x2="', round(to[1], 1), '" y2="', round(to[2], 1), '"',
-                  ov_mar, ' ', ov_css, '/>')
+                  ov_mar_this, ' ', ov_css_this, '/>')
           }
+
+          # Overlay edge label
+          {
+            ov_lbl_txt <- NULL
+            if (!is.null(overlay_edge_labels) &&
+                !is.na(overlay_edge_labels[i, j]) &&
+                nzchar(trimws(overlay_edge_labels[i, j])))
+              ov_lbl_txt <- trimws(overlay_edge_labels[i, j])
+            else if (v != 1)
+              ov_lbl_txt <- format(v, trim = TRUE)
+            if (!is.null(ov_lbl_txt)) {
+              mx <- (from[1] + to[1]) / 2
+              my <- (from[2] + to[2]) / 2
+              .emit('  <text x="', round(mx, 1), '" y="', round(my, 1), '"',
+                    ' text-anchor="middle" dominant-baseline="auto"',
+                    ' dy="-4" font-size="10" fill="', ovs$colour, '"',
+                    ' font-family="Helvetica,Arial,sans-serif">',
+                    .xml_esc(ov_lbl_txt), '</text>')
+            }
+          }
+          done_ov[i, j] <- TRUE
         }
-        done_ov[i, j] <- TRUE
       }
     }
   }
@@ -301,6 +484,86 @@
             '" font-size="10" fill="#e53e3e"',
             ' font-family="Helvetica,Arial,sans-serif">', lbl, '</text>')
       .emit('  </g>')
+    }
+  }
+
+  # ── Legend ──────────────────────────────────────────────────────────────────
+  if (n_legend > 0L) {
+    lx  <- LEG_PAD                 # legend box left x
+    ly  <- H + LEG_GAP             # legend box top y (below graph)
+    lbw <- min(LEG_W, round(W - 2 * LEG_PAD))  # box width capped to canvas
+    .emit('  <!-- legend -->')
+    .emit('  <rect x="', lx, '" y="', round(ly), '" width="', lbw,
+          '" height="', round(leg_content_h),
+          '" fill="white" stroke="#cbd5e0" stroke-width="1" rx="4"/>')
+    # Title
+    .emit('  <text x="', lx + LEG_PAD, '" y="', round(ly + LEG_TITLE_H - 5),
+          '" font-size="11" font-weight="bold" fill="#2d3748"',
+          ' font-family="Helvetica,Arial,sans-serif">',
+          .xml_esc(legend_title), '</text>')
+    .emit('  <line x1="', lx + 4, '" y1="', round(ly + LEG_TITLE_H),
+          '" x2="', lx + lbw - 4, '" y2="', round(ly + LEG_TITLE_H),
+          '" stroke="#e2e8f0" stroke-width="1"/>')
+
+    row_y <- ly + LEG_TITLE_H + 4L
+    for (item in legend_items) {
+      if (!is.null(item$section)) {
+        # Section header
+        .emit('  <text x="', lx + LEG_PAD, '" y="', round(row_y + 13),
+              '" font-size="9" font-weight="bold" fill="#718096"',
+              ' font-family="Helvetica,Arial,sans-serif" text-transform="uppercase">',
+              .xml_esc(toupper(item$section)), '</text>')
+        row_y <- row_y + 18L
+        next
+      }
+      icon_cx <- lx + LEG_PAD + LEG_ICON_W / 2
+      text_x  <- lx + LEG_PAD + LEG_ICON_W + 4L
+      row_cy  <- row_y + LEG_ROW_H / 2
+
+      if (item$type == "shape") {
+        sh <- tolower(trimws(item$shape))
+        sw <- 24L; sh_h <- 14L
+        natt <- 'fill="#e8f0fe" stroke="#4a5568" stroke-width="1"'
+        switch(sh,
+          circle  = .emit('  <circle cx="', round(icon_cx), '" cy="', round(row_cy),
+                          '" r="8" ', natt, '/>'),
+          ellipse = .emit('  <ellipse cx="', round(icon_cx), '" cy="', round(row_cy),
+                          '" rx="12" ry="7" ', natt, '/>'),
+          diamond = .emit('  <polygon points="',
+                          round(icon_cx), ',', round(row_cy - 8),  ' ',
+                          round(icon_cx + 12), ',', round(row_cy),  ' ',
+                          round(icon_cx), ',', round(row_cy + 8),  ' ',
+                          round(icon_cx - 12), ',', round(row_cy), '" ', natt, '/>'),
+          rounded = .emit('  <rect x="', round(icon_cx - 12), '" y="', round(row_cy - 7),
+                          '" width="24" height="14" rx="4" ', natt, '/>'),
+          .emit('  <rect x="', round(icon_cx - 12), '" y="', round(row_cy - 7),
+                '" width="24" height="14" ', natt, '/>')
+        )
+      } else if (item$type == "colour") {
+        .emit('  <rect x="', round(icon_cx - 10), '" y="', round(row_cy - 7),
+              '" width="20" height="14" fill="', item$colour,
+              '" stroke="#4a5568" stroke-width="1" rx="2"/>')
+      } else if (item$type == "edge") {
+        da <- .dasharray(item$linetype)
+        ecs <- sprintf('stroke="%s" stroke-width="%g" fill="none"%s',
+                       item$colour, item$width,
+                       if (nzchar(da)) paste0(' stroke-dasharray="', da, '"') else "")
+        .emit('  <line x1="', round(icon_cx - 14), '" y1="', round(row_cy),
+              '" x2="', round(icon_cx + 14), '" y2="', round(row_cy),
+              '" ', ecs, '/>')
+        if (directed)
+          .emit('  <polygon points="',
+                round(icon_cx + 14), ',', round(row_cy), ' ',
+                round(icon_cx + 9),  ',', round(row_cy - 3), ' ',
+                round(icon_cx + 9),  ',', round(row_cy + 3),
+                '" fill="', item$colour, '"/>')
+      }
+
+      .emit('  <text x="', text_x, '" y="', round(row_cy + 4),
+            '" font-size="10" fill="#2d3748"',
+            ' font-family="Helvetica,Arial,sans-serif">',
+            .xml_esc(item$label), '</text>')
+      row_y <- row_y + LEG_ROW_H
     }
   }
 

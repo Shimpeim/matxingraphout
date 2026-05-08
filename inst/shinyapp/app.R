@@ -36,6 +36,53 @@ resize_matrix <- function(old_m, new_ids) {
   new_m
 }
 
+# Parse a square adjacency/label matrix CSV.
+# Expected: first column = row IDs (no header or blank header),
+#           remaining column headers = col IDs,
+#           cells = values (numeric for adj, character for labels).
+parse_matrix_csv <- function(path, numeric = TRUE) {
+  df  <- read.csv(path, header = TRUE, check.names = FALSE,
+                  stringsAsFactors = FALSE)
+  row_ids <- as.character(df[[1]])
+  col_ids <- colnames(df)[-1]
+  mat <- as.matrix(df[, -1, drop = FALSE])
+  rownames(mat) <- row_ids
+  colnames(mat) <- col_ids
+  if (numeric) storage.mode(mat) <- "numeric"
+  mat
+}
+
+# Parse a node properties CSV; returns a data.frame with standard columns.
+parse_node_csv <- function(path) {
+  df <- read.csv(path, header = TRUE, check.names = FALSE,
+                 stringsAsFactors = FALSE)
+  names(df) <- tolower(names(df))
+  for (pair in list(c("color", "colour"), c("fontcolor", "fontcolour"))) {
+    old <- pair[1]; new <- pair[2]
+    if (old %in% names(df) && !new %in% names(df))
+      names(df)[names(df) == old] <- new
+  }
+  for (col in c("id", "label", "shape", "colour", "fontcolour", "stroke"))
+    if (col %in% names(df)) df[[col]] <- as.character(df[[col]])
+  for (col in c("x", "y", "width", "height", "fontsize"))
+    if (col %in% names(df)) df[[col]] <- suppressWarnings(as.numeric(df[[col]]))
+  if (!"label"  %in% names(df) && "id" %in% names(df)) df$label  <- df$id
+  if (!"shape"  %in% names(df)) df$shape  <- "rect"
+  if (!"colour" %in% names(df)) df$colour <- "#e8f0fe"
+  for (col in c("x","y","width","height","fontsize","fontcolour","stroke"))
+    if (!col %in% names(df)) df[[col]] <- NA
+  df
+}
+
+# Parse a settings CSV (2 columns: Setting, Value).
+# Returns a named list.
+parse_settings_csv <- function(path) {
+  df <- read.csv(path, header = TRUE, stringsAsFactors = FALSE)
+  names(df) <- tolower(trimws(names(df)))
+  if (!all(c("setting","value") %in% names(df))) return(list())
+  setNames(as.list(trimws(df$value)), trimws(df$setting))
+}
+
 # ── CSS ───────────────────────────────────────────────────────────────────────
 
 APP_CSS <- "
@@ -66,6 +113,10 @@ body { background:#f0f2f5; font-family:-apple-system,BlinkMacSystemFont,'Segoe U
   border:1px solid #cbd5e0 !important; border-radius:4px !important; }
 .matrix-table .cell.diag input[type='number'] {
   background:#f7fafc !important; color:#a0aec0 !important; }
+.matrix-table .cell input[type='text'] {
+  width:54px !important; text-align:center !important;
+  padding:3px 2px !important; font-size:12px !important;
+  border:1px solid #cbd5e0 !important; border-radius:4px !important; }
 .svg-container { background:#f7fafc; border-radius:6px; border:1px solid #e2e8f0;
                  min-height:280px; overflow:auto; text-align:center; padding:16px; }
 .svg-placeholder { color:#a0aec0; margin-top:90px; font-size:14px; }
@@ -357,6 +408,8 @@ document.addEventListener('DOMContentLoaded', function() {
       # Nodes ---
       tags$div(class = "panel-box",
         tags$h5("Nodes"),
+        tags$p(tags$small(style = "color:#718096",
+          "Use ", tags$code("\\n"), " in the Label cell for multi-line node labels.")),
         DT::DTOutput("node_table"),
         tags$br(),
         fluidRow(
@@ -386,6 +439,38 @@ document.addEventListener('DOMContentLoaded', function() {
         )
       ),
 
+      # Edge Properties ---
+      tags$div(class = "panel-box",
+        tags$h5("Structural edge properties"),
+        tags$p(tags$small(style = "color:#718096",
+          "Map edge weight values to colour, width, linetype, and legend label.",
+          " Weights not listed use the global edge settings.")),
+        DT::DTOutput("edge_props_table"),
+        tags$br(),
+        fluidRow(
+          column(6, actionButton("add_ep",  "\u002b Add row",
+                                 class = "btn-sm btn-default", width = "100%")),
+          column(6, actionButton("del_ep",  "\u2212 Delete selected",
+                                 class = "btn-sm btn-danger",  width = "100%"))
+        )
+      ),
+
+      conditionalPanel("input.use_overlay",
+        tags$div(class = "panel-box",
+          tags$h5("Overlay edge properties"),
+          tags$p(tags$small(style = "color:#718096",
+            "Same as above but for overlay edges.")),
+          DT::DTOutput("overlay_ep_table"),
+          tags$br(),
+          fluidRow(
+            column(6, actionButton("add_ovep", "\u002b Add row",
+                                   class = "btn-sm btn-default", width = "100%")),
+            column(6, actionButton("del_ovep", "\u2212 Delete selected",
+                                   class = "btn-sm btn-danger",  width = "100%"))
+          )
+        )
+      ),
+
       # Centroids ---
       tags$div(class = "panel-box",
         tags$h5("Centroids \u2014 arc curvature origins"),
@@ -400,6 +485,15 @@ document.addEventListener('DOMContentLoaded', function() {
           column(6, actionButton("del_centroid", "\u2212 Delete selected",
                                  class = "btn-sm btn-danger",  width = "100%"))
         )
+      ),
+
+      # Edge Labels ---
+      tags$div(class = "panel-box",
+        tags$h5("Edge labels"),
+        tags$p(tags$small(style = "color:#718096",
+          "Optional text labels on edges. Empty cell = use weight value (if \u2260 1) or no label.",
+          " In the Nodes table, use ", tags$code("\\n"), " in Label for multi-line node labels.")),
+        tags$div(class = "matrix-wrap", uiOutput("edge_label_matrix_ui"))
       ),
 
       # Settings ---
@@ -465,13 +559,68 @@ document.addEventListener('DOMContentLoaded', function() {
         fluidRow(
           column(6, textInput("default_fontcolour", "Font colour",   value = "#222222")),
           column(6, textInput("default_stroke",     "Border colour", value = "#333333"))
+        ),
+        tags$hr(style = "border-color:#edf2f7; margin:10px 0"),
+        tags$small(tags$b("Legend")),
+        fluidRow(
+          column(6, checkboxInput("show_legend", "Show legend", value = FALSE)),
+          column(6, textInput("legend_title", "Legend title", value = "Legend"))
+        ),
+        conditionalPanel("input.show_legend",
+          tags$p(tags$small(style = "color:#718096",
+            "Node shape legend (shape \u2192 label):")),
+          DT::DTOutput("legend_shapes_table"),
+          tags$br(),
+          fluidRow(
+            column(5, actionButton("add_ls",  "\u002b Add",    class = "btn-sm btn-default", width="100%")),
+            column(5, actionButton("del_ls",  "\u2212 Remove", class = "btn-sm btn-danger",  width="100%")),
+            column(2, actionButton("auto_ls", "\u21ba",        class = "btn-sm btn-default", width="100%",
+                                   title = "Auto-populate from node shapes"))
+          ),
+          tags$br(),
+          tags$p(tags$small(style = "color:#718096",
+            "Node colour legend (hex \u2192 label):")),
+          DT::DTOutput("legend_colours_table"),
+          tags$br(),
+          fluidRow(
+            column(5, actionButton("add_lc",  "\u002b Add",    class = "btn-sm btn-default", width="100%")),
+            column(5, actionButton("del_lc",  "\u2212 Remove", class = "btn-sm btn-danger",  width="100%")),
+            column(2, actionButton("auto_lc", "\u21ba",        class = "btn-sm btn-default", width="100%",
+                                   title = "Auto-populate from node colours"))
+          )
         )
       ),
 
       # Render button ---
       tags$button(id = "render_btn", class = "btn render-btn",
         onclick = "Shiny.setInputValue('render_btn', Math.random())",
-        "\u25b6\u2002Render Graph")
+        "\u25b6\u2002Render Graph"),
+
+      # Import CSV ---
+      tags$div(class = "panel-box", style = "margin-top:12px",
+        tags$h5("Import CSV"),
+        tags$p(tags$small(style = "color:#718096",
+          "CSV formats: ",
+          tags$b("Nodes"), " — columns: id, label, shape, colour, x, y, [width, height, fontsize, fontcolour, stroke]. ",
+          tags$b("Matrix"), " — first column = from-node IDs, remaining column headers = to-node IDs; numeric values. ",
+          tags$b("Edge labels"), " — same format as matrix but cells are label strings. ",
+          tags$b("Settings"), " — two columns: Setting, Value."
+        )),
+        fileInput("csv_nodes",   "Node properties (.csv)", accept = ".csv",
+                  placeholder = "node_props.csv"),
+        fileInput("csv_adj",     "Adjacency matrix (.csv)", accept = ".csv",
+                  placeholder = "adj.csv"),
+        fileInput("csv_edgelbl", "Edge labels (.csv)", accept = ".csv",
+                  placeholder = "edge_labels.csv"),
+        fileInput("csv_overlay", "Overlay matrix (.csv)", accept = ".csv",
+                  placeholder = "overlay.csv"),
+        fileInput("csv_settings","Settings (.csv)", accept = ".csv",
+                  placeholder = "settings.csv"),
+        fileInput("csv_edge_props",    "Edge properties (.csv)", accept = ".csv",
+                  placeholder = "edge_props.csv"),
+        fileInput("csv_overlay_props", "Overlay edge properties (.csv)", accept = ".csv",
+                  placeholder = "overlay_edge_props.csv")
+      )
     ),
 
     # ── RIGHT : output panels ───────────────────────────────────────────────
@@ -538,14 +687,26 @@ document.addEventListener('DOMContentLoaded', function() {
 server <- function(input, output, session) {
 
   rv <- reactiveValues(
-    nodes     = default_nodes(),
-    adj       = default_adj(c("A", "B", "C")),
-    overlay   = matrix(0, 3L, 3L,
-                       dimnames = list(c("A","B","C"), c("A","B","C"))),
-    centroids = data.frame(label = character(0), x = numeric(0), y = numeric(0),
-                           stringsAsFactors = FALSE),
-    result    = NULL,
-    error     = NULL
+    nodes            = default_nodes(),
+    adj              = default_adj(c("A", "B", "C")),
+    overlay          = matrix(0, 3L, 3L,
+                              dimnames = list(c("A","B","C"), c("A","B","C"))),
+    edge_labels      = NULL,
+    edge_labels_arg  = NULL,
+    centroids        = data.frame(label = character(0), x = numeric(0), y = numeric(0),
+                                  stringsAsFactors = FALSE),
+    edge_props         = data.frame(weight=numeric(0), colour=character(0),
+                                     width=numeric(0), linetype=character(0),
+                                     label=character(0), stringsAsFactors=FALSE),
+    overlay_edge_props = data.frame(weight=numeric(0), colour=character(0),
+                                     width=numeric(0), linetype=character(0),
+                                     label=character(0), stringsAsFactors=FALSE),
+    legend_shapes      = data.frame(shape=character(0), label=character(0),
+                                     stringsAsFactors=FALSE),
+    legend_colours     = data.frame(colour=character(0), label=character(0),
+                                     stringsAsFactors=FALSE),
+    result           = NULL,
+    error            = NULL
   )
 
   # ── Node table ────────────────────────────────────────────────────────────
@@ -653,6 +814,42 @@ server <- function(input, output, session) {
   output$adj_matrix_ui <- renderUI({ make_matrix_ui(rv$nodes$id, "adj") })
   output$ovl_matrix_ui <- renderUI({ make_matrix_ui(rv$nodes$id, "ovl") })
 
+  make_label_matrix_ui <- function(ids, prefix) {
+    n <- length(ids)
+    if (n == 0L)
+      return(tags$p(tags$small(style = "color:#718096", "No nodes defined.")))
+    if (n > 15L)
+      return(tags$p(tags$small(style = "color:#e53e3e",
+        "Grid display limited to 15 nodes. Use CSV import for larger matrices.")))
+
+    m <- isolate(rv$edge_labels)
+
+    header <- tags$tr(
+      tags$th(""),
+      lapply(ids, function(id) tags$th(class = "hdr", id))
+    )
+    body_rows <- lapply(seq_len(n), function(i) {
+      tags$tr(
+        tags$td(class = "row-hdr", ids[i]),
+        lapply(seq_len(n), function(j) {
+          val <- if (!is.null(m) && nrow(m) >= i && ncol(m) >= j &&
+                     !is.na(m[i, j])) m[i, j] else ""
+          tags$td(
+            class = paste0("cell", if (i == j) " diag"),
+            textInput(paste0(prefix, "_", i, "_", j),
+                      label = NULL, value = val,
+                      width = "54px",
+                      placeholder = "")
+          )
+        })
+      )
+    })
+    tags$table(class = "matrix-table",
+      tags$thead(header),
+      tags$tbody(body_rows)
+    )
+  }
+
   # ── Centroid table ────────────────────────────────────────────────────────
 
   output$centroid_table <- DT::renderDT({
@@ -697,6 +894,238 @@ server <- function(input, output, session) {
       rv$centroids <- rv$centroids[-sel, , drop = FALSE]
   })
 
+  output$edge_label_matrix_ui <- renderUI({
+    make_label_matrix_ui(rv$nodes$id, "elbl")
+  })
+
+  # ── Edge props tables ─────────────────────────────────────────────────────
+
+  output$edge_props_table <- DT::renderDT({
+    DT::datatable(rv$edge_props, rownames = FALSE,
+                  editable = list(target = "cell"), selection = "multiple",
+                  options = list(pageLength = 10, dom = "t", scrollX = TRUE,
+                    columnDefs = list(list(width = "60px", targets = c(0L,2L)),
+                                      list(width = "80px", targets = c(1L,3L,4L)))))
+  }, server = FALSE)
+
+  observeEvent(input$edge_props_table_cell_edit, {
+    info <- input$edge_props_table_cell_edit
+    rv$edge_props[info$row, info$col + 1L] <- tryCatch(
+      type.convert(as.character(info$value), as.is = TRUE), error = function(e) info$value)
+  })
+  observeEvent(input$add_ep, {
+    rv$edge_props <- rbind(rv$edge_props, data.frame(
+      weight=1, colour=NA_character_, width=NA_real_,
+      linetype="solid", label=NA_character_, stringsAsFactors=FALSE))
+  })
+  observeEvent(input$del_ep, {
+    sel <- input$edge_props_table_rows_selected
+    if (length(sel)) rv$edge_props <- rv$edge_props[-sel, , drop=FALSE]
+  })
+
+  output$overlay_ep_table <- DT::renderDT({
+    DT::datatable(rv$overlay_edge_props, rownames = FALSE,
+                  editable = list(target = "cell"), selection = "multiple",
+                  options = list(pageLength = 10, dom = "t", scrollX = TRUE,
+                    columnDefs = list(list(width = "60px", targets = c(0L,2L)),
+                                      list(width = "80px", targets = c(1L,3L,4L)))))
+  }, server = FALSE)
+
+  observeEvent(input$overlay_ep_table_cell_edit, {
+    info <- input$overlay_ep_table_cell_edit
+    rv$overlay_edge_props[info$row, info$col + 1L] <- tryCatch(
+      type.convert(as.character(info$value), as.is = TRUE), error = function(e) info$value)
+  })
+  observeEvent(input$add_ovep, {
+    rv$overlay_edge_props <- rbind(rv$overlay_edge_props, data.frame(
+      weight=1, colour=NA_character_, width=NA_real_,
+      linetype="solid", label=NA_character_, stringsAsFactors=FALSE))
+  })
+  observeEvent(input$del_ovep, {
+    sel <- input$overlay_ep_table_rows_selected
+    if (length(sel)) rv$overlay_edge_props <- rv$overlay_edge_props[-sel, , drop=FALSE]
+  })
+
+  output$legend_shapes_table <- DT::renderDT({
+    DT::datatable(rv$legend_shapes, rownames = FALSE,
+                  editable = list(target = "cell"), selection = "multiple",
+                  options = list(pageLength = 10, dom = "t", scrollX = TRUE))
+  }, server = FALSE)
+
+  observeEvent(input$legend_shapes_table_cell_edit, {
+    info <- input$legend_shapes_table_cell_edit
+    rv$legend_shapes[info$row, info$col + 1L] <- as.character(info$value)
+  })
+  observeEvent(input$add_ls, {
+    rv$legend_shapes <- rbind(rv$legend_shapes,
+      data.frame(shape="rect", label="", stringsAsFactors=FALSE))
+  })
+  observeEvent(input$del_ls, {
+    sel <- input$legend_shapes_table_rows_selected
+    if (length(sel)) rv$legend_shapes <- rv$legend_shapes[-sel, , drop=FALSE]
+  })
+  observeEvent(input$auto_ls, {
+    shapes <- unique(rv$nodes$shape)
+    rv$legend_shapes <- data.frame(shape=shapes,
+      label=vapply(shapes, function(s) paste0(toupper(substr(s,1,1)), substr(s,2,nchar(s))),
+                   character(1L)),
+      stringsAsFactors=FALSE)
+  })
+
+  output$legend_colours_table <- DT::renderDT({
+    DT::datatable(rv$legend_colours, rownames = FALSE,
+                  editable = list(target = "cell"), selection = "multiple",
+                  options = list(pageLength = 10, dom = "t", scrollX = TRUE))
+  }, server = FALSE)
+
+  observeEvent(input$legend_colours_table_cell_edit, {
+    info <- input$legend_colours_table_cell_edit
+    rv$legend_colours[info$row, info$col + 1L] <- as.character(info$value)
+  })
+  observeEvent(input$add_lc, {
+    rv$legend_colours <- rbind(rv$legend_colours,
+      data.frame(colour="#e8f0fe", label="", stringsAsFactors=FALSE))
+  })
+  observeEvent(input$del_lc, {
+    sel <- input$legend_colours_table_rows_selected
+    if (length(sel)) rv$legend_colours <- rv$legend_colours[-sel, , drop=FALSE]
+  })
+  observeEvent(input$auto_lc, {
+    colours <- unique(rv$nodes$colour)
+    colours <- colours[!is.na(colours)]
+    rv$legend_colours <- data.frame(colour=colours, label="",
+                                     stringsAsFactors=FALSE)
+  })
+
+  # ── CSV import ────────────────────────────────────────────────────────────
+
+  observeEvent(input$csv_nodes, {
+    req(input$csv_nodes)
+    df <- tryCatch(parse_node_csv(input$csv_nodes$datapath),
+                   error = function(e) { rv$error <- paste("Node CSV:", e$message); NULL })
+    if (is.null(df)) return()
+    req("id" %in% names(df))
+    rv$nodes <- df
+    sync_ids()
+    rv$error <- NULL
+  })
+
+  observeEvent(input$csv_adj, {
+    req(input$csv_adj)
+    mat <- tryCatch(parse_matrix_csv(input$csv_adj$datapath, numeric = TRUE),
+                    error = function(e) { rv$error <- paste("Adj CSV:", e$message); NULL })
+    if (is.null(mat)) return()
+    rv$adj   <- mat
+    # Sync node table to matrix IDs
+    new_ids  <- rownames(mat)
+    if (!identical(new_ids, rv$nodes$id)) {
+      kept <- rv$nodes[rv$nodes$id %in% new_ids, , drop = FALSE]
+      new_rows <- setdiff(new_ids, kept$id)
+      if (length(new_rows)) {
+        extra <- data.frame(
+          id = new_rows, label = new_rows, shape = "rect", colour = "#e8f0fe",
+          x = NA_real_, y = NA_real_, width = NA_real_, height = NA_real_,
+          fontsize = NA_real_, fontcolour = NA_character_, stroke = NA_character_,
+          stringsAsFactors = FALSE)
+        kept <- rbind(kept, extra)
+      }
+      kept <- kept[match(new_ids, kept$id), , drop = FALSE]
+      rv$nodes <- kept
+    }
+    sync_ids()
+    rv$error <- NULL
+  })
+
+  observeEvent(input$csv_edgelbl, {
+    req(input$csv_edgelbl)
+    mat <- tryCatch(parse_matrix_csv(input$csv_edgelbl$datapath, numeric = FALSE),
+                    error = function(e) { rv$error <- paste("Edge label CSV:", e$message); NULL })
+    if (is.null(mat)) return()
+    rv$edge_labels <- mat
+    rv$error <- NULL
+  })
+
+  observeEvent(input$csv_overlay, {
+    req(input$csv_overlay)
+    mat <- tryCatch(parse_matrix_csv(input$csv_overlay$datapath, numeric = TRUE),
+                    error = function(e) { rv$error <- paste("Overlay CSV:", e$message); NULL })
+    if (is.null(mat)) return()
+    rv$overlay <- mat
+    rv$error   <- NULL
+  })
+
+  observeEvent(input$csv_edge_props, {
+    req(input$csv_edge_props)
+    df <- tryCatch(read.csv(input$csv_edge_props$datapath, stringsAsFactors=FALSE),
+                   error = function(e) { rv$error <- paste("Edge props CSV:", e$message); NULL })
+    if (is.null(df) || !"weight" %in% tolower(names(df))) return()
+    names(df) <- tolower(names(df))
+    rv$edge_props <- df
+    rv$error <- NULL
+  })
+
+  observeEvent(input$csv_overlay_props, {
+    req(input$csv_overlay_props)
+    df <- tryCatch(read.csv(input$csv_overlay_props$datapath, stringsAsFactors=FALSE),
+                   error = function(e) { rv$error <- paste("Overlay edge props CSV:", e$message); NULL })
+    if (is.null(df) || !"weight" %in% tolower(names(df))) return()
+    names(df) <- tolower(names(df))
+    rv$overlay_edge_props <- df
+    rv$error <- NULL
+  })
+
+  observeEvent(input$csv_settings, {
+    req(input$csv_settings)
+    s <- tryCatch(parse_settings_csv(input$csv_settings$datapath),
+                  error = function(e) { rv$error <- paste("Settings CSV:", e$message); NULL })
+    if (is.null(s)) return()
+    if (!is.null(s$directed))
+      updateCheckboxInput(session, "directed",
+                          value = tolower(trimws(s$directed)) %in% c("true","1","yes"))
+    if (!is.null(s$layout))
+      updateSelectInput(session, "layout", selected = s$layout)
+    if (!is.null(s$edge_colour))
+      updateTextInput(session, "edge_colour", value = s$edge_colour)
+    if (!is.null(s$edge_width))
+      updateNumericInput(session, "edge_width",  value = as.numeric(s$edge_width))
+    if (!is.null(s$edge_curvature))
+      updateSelectInput(session, "edge_curvature", selected = s$edge_curvature)
+    if (!is.null(s$use_overlay))
+      updateCheckboxInput(session, "use_overlay",
+                          value = tolower(trimws(s$use_overlay)) %in% c("true","1","yes"))
+    if (!is.null(s$overlay_edge_colour))
+      updateTextInput(session, "ovl_colour", value = s$overlay_edge_colour)
+    if (!is.null(s$overlay_edge_width))
+      updateNumericInput(session, "ovl_width", value = as.numeric(s$overlay_edge_width))
+    if (!is.null(s$overlay_edge_style))
+      updateSelectInput(session, "ovl_style", selected = s$overlay_edge_style)
+    if (!is.null(s$overlay_edge_curvature))
+      updateSelectInput(session, "ovl_curvature", selected = s$overlay_edge_curvature)
+    if (!is.null(s$default_width))
+      updateNumericInput(session, "default_width",   value = as.numeric(s$default_width))
+    if (!is.null(s$default_height))
+      updateNumericInput(session, "default_height",  value = as.numeric(s$default_height))
+    if (!is.null(s$default_fontsize))
+      updateNumericInput(session, "default_fontsize",value = as.numeric(s$default_fontsize))
+    if (!is.null(s$default_fontcolour))
+      updateTextInput(session, "default_fontcolour", value = s$default_fontcolour)
+    if (!is.null(s$default_stroke))
+      updateTextInput(session, "default_stroke",     value = s$default_stroke)
+    if (!is.null(s$svg_padding))
+      updateNumericInput(session, "svg_padding",     value = as.numeric(s$svg_padding))
+    if (!is.null(s$sunburst_max_depth))
+      updateNumericInput(session, "sunburst_max_depth",     value = as.numeric(s$sunburst_max_depth))
+    if (!is.null(s$sunburst_min_branching))
+      updateNumericInput(session, "sunburst_min_branching", value = as.numeric(s$sunburst_min_branching))
+    if (!is.null(s$circle_r))
+      updateNumericInput(session, "circle_r",  value = as.numeric(s$circle_r))
+    if (!is.null(s$circle_cx))
+      updateNumericInput(session, "circle_cx", value = as.numeric(s$circle_cx))
+    if (!is.null(s$circle_cy))
+      updateNumericInput(session, "circle_cy", value = as.numeric(s$circle_cy))
+    rv$error <- NULL
+  })
+
   # ── Render ────────────────────────────────────────────────────────────────
 
   observeEvent(input$render_btn, {
@@ -735,10 +1164,35 @@ server <- function(input, output, session) {
     for (col in c("x", "y", "width", "height", "fontsize"))
       np[[col]] <- suppressWarnings(as.numeric(np[[col]]))
 
+    # Convert literal \n in labels to actual newlines for multi-line SVG text
+    np$label <- gsub("\\n", "\n", np$label, fixed = TRUE)
+
     # Circle layout: treat 0 as NULL (auto)
     circle_r  <- if (isTRUE(input$circle_r  == 0)) NULL else input$circle_r
     circle_cx <- if (isTRUE(input$circle_cx == 0)) NULL else input$circle_cx
     circle_cy <- if (isTRUE(input$circle_cy == 0)) NULL else input$circle_cy
+
+    # Read edge labels from grid inputs (if any cell is non-empty)
+    edge_labels_arg <- NULL
+    ids_for_lbl <- ids
+    n_lbl <- length(ids_for_lbl)
+    if (!is.null(rv$edge_labels) &&
+        identical(dim(rv$edge_labels), c(n_lbl, n_lbl))) {
+      edge_labels_arg <- rv$edge_labels
+    } else {
+      # Try reading from UI grid
+      elbl_m <- matrix("", n_lbl, n_lbl, dimnames = list(ids_for_lbl, ids_for_lbl))
+      any_label <- FALSE
+      for (i in seq_len(n_lbl)) for (j in seq_len(n_lbl)) {
+        v <- input[[paste0("elbl_", i, "_", j)]]
+        if (!is.null(v) && nzchar(trimws(v))) {
+          elbl_m[i, j] <- trimws(v)
+          any_label <- TRUE
+        }
+      }
+      if (any_label) edge_labels_arg <- elbl_m
+    }
+    rv$edge_labels_arg <- edge_labels_arg
 
     # Centroids: empty table → NULL (falls back to eigenvector hub mode)
     centroids_arg <- if (nrow(rv$centroids) > 0L) {
@@ -749,6 +1203,22 @@ server <- function(input, output, session) {
     } else {
       NULL
     }
+
+    # Edge props: empty table → NULL
+    ep_arg <- if (nrow(rv$edge_props) > 0L) rv$edge_props else NULL
+    ovep_arg <- if (nrow(rv$overlay_edge_props) > 0L) rv$overlay_edge_props else NULL
+
+    # Legend vectors
+    lns_arg <- if (nrow(rv$legend_shapes) > 0L) {
+      setNames(rv$legend_shapes$label, rv$legend_shapes$shape)
+    } else NULL
+    lnc_arg <- if (nrow(rv$legend_colours) > 0L) {
+      setNames(rv$legend_colours$label, rv$legend_colours$colour)
+    } else NULL
+
+    rv$ep_arg  <- ep_arg
+    rv$lns_arg <- lns_arg
+    rv$lnc_arg <- lnc_arg
 
     result <- tryCatch(
       graph_to_outputs(
@@ -778,7 +1248,14 @@ server <- function(input, output, session) {
         circle_r               = circle_r,
         circle_cx              = circle_cx,
         circle_cy              = circle_cy,
-        centroids              = centroids_arg
+        centroids              = centroids_arg,
+        edge_labels            = edge_labels_arg,
+        edge_props             = ep_arg,
+        overlay_edge_props     = ovep_arg,
+        show_legend            = isTRUE(input$show_legend),
+        legend_node_shape      = lns_arg,
+        legend_node_colour     = lnc_arg,
+        legend_title           = input$legend_title
       ),
       error = function(e) e
     )
@@ -851,11 +1328,14 @@ server <- function(input, output, session) {
 
   output$rcode_out <- renderText({
     req(rv$result)
-    np   <- rv$nodes
-    ids  <- np$id
-    adj  <- rv$adj
-    n    <- length(ids)
-    cen  <- rv$centroids
+    np      <- rv$nodes
+    ids     <- np$id
+    adj     <- rv$adj
+    n       <- length(ids)
+    cen     <- rv$centroids
+    ep_arg  <- rv$ep_arg
+    lns_arg <- rv$lns_arg
+    lnc_arg <- rv$lnc_arg
 
     fmtv <- function(x, q = FALSE) {
       s <- vapply(x, function(v) {
@@ -884,6 +1364,56 @@ server <- function(input, output, session) {
     cen_arg <- if (nrow(cen) > 0L) "  centroids      = centroids,\n" else
       "  # centroids = NULL  # (uses eigenvector-centrality hub)\n"
 
+    # Edge labels block
+    elbl_block <- ""
+    elbl_arg   <- "  # edge_labels = NULL  # (no edge labels)\n"
+    edge_labels_arg <- rv$edge_labels_arg
+    if (!is.null(edge_labels_arg)) {
+      nr <- nrow(edge_labels_arg)
+      nc <- ncol(edge_labels_arg)
+      cells <- apply(edge_labels_arg, 2L, function(col)
+        paste0('  c(', paste0('"', col, '"', collapse = ", "), ')')
+      )
+      elbl_block <- paste0(
+        "edge_labels <- matrix(\n  c(\n",
+        paste(cells, collapse = ",\n"), "\n  ),\n",
+        "  nrow = ", nr, ", byrow = FALSE,\n",
+        "  dimnames = list(ids, ids)\n)\n\n"
+      )
+      elbl_arg <- "  edge_labels       = edge_labels,\n"
+    }
+
+    # Edge props block
+    ep_block <- ""
+    ep_arg_code <- "  # edge_props = NULL,\n"
+    if (!is.null(ep_arg)) {
+      ep_block <- paste0(
+        "edge_props <- data.frame(\n",
+        "  weight   = c(", paste(ep_arg$weight, collapse = ", "), "),\n",
+        "  colour   = c(", paste0('"', ep_arg$colour, '"', collapse = ", "), "),\n",
+        "  width    = c(", paste(ep_arg$width,  collapse = ", "), "),\n",
+        "  linetype = c(", paste0('"', ep_arg$linetype, '"', collapse = ", "), "),\n",
+        "  label    = c(", paste0('"', ep_arg$label, '"',  collapse = ", "), "),\n",
+        "  stringsAsFactors = FALSE\n)\n\n"
+      )
+      ep_arg_code <- "  edge_props         = edge_props,\n"
+    }
+
+    # Legend args
+    leg_args_code <- ""
+    if (isTRUE(input$show_legend)) {
+      leg_args_code <- paste0(
+        "  show_legend        = TRUE,\n",
+        "  legend_title       = \"", input$legend_title, "\",\n"
+      )
+      if (!is.null(lns_arg))
+        leg_args_code <- paste0(leg_args_code,
+          "  legend_node_shape  = c(", paste0(names(lns_arg), ' = "', lns_arg, '"', collapse=", "), "),\n")
+      if (!is.null(lnc_arg))
+        leg_args_code <- paste0(leg_args_code,
+          "  legend_node_colour = c(", paste0('"', names(lnc_arg), '" = "', lnc_arg, '"', collapse=", "), "),\n")
+    }
+
     paste0(
       "library(matxingraphout)\n\n",
       "ids <- c(", fmtv(ids, q = TRUE), ")\n\n",
@@ -899,6 +1429,8 @@ server <- function(input, output, session) {
       "  y         = c(", fmtv(np$y),    "),\n",
       "  stringsAsFactors = FALSE\n)\n\n",
       cen_block,
+      elbl_block,
+      ep_block,
       "result <- graph_to_outputs(\n",
       "  adj_matrix     = adj,\n",
       "  node_props     = nodes,\n",
@@ -908,6 +1440,9 @@ server <- function(input, output, session) {
       "  edge_width     = ", input$edge_width, ",\n",
       "  edge_curvature = \"", input$edge_curvature, "\",\n",
       cen_arg,
+      elbl_arg,
+      ep_arg_code,
+      leg_args_code,
       "  svg_file       = \"graph.svg\",\n",
       "  dot_file       = \"graph.dot\",\n",
       "  mermaid_file   = \"graph.mmd\"\n",

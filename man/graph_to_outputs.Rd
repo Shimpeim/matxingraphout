@@ -33,7 +33,15 @@ graph_to_outputs(
   edge_curvature = "auto",
   overlay_edge_curvature = "auto",
   centroids = NULL,
-  show_centroids = TRUE
+  show_centroids = TRUE,
+  edge_labels = NULL,
+  overlay_edge_labels = NULL,
+  edge_props = NULL,
+  overlay_edge_props = NULL,
+  show_legend = FALSE,
+  legend_node_shape = NULL,
+  legend_node_colour = NULL,
+  legend_title = "Legend"
 )
 }
 \arguments{
@@ -177,6 +185,53 @@ orientations.  An empty data.frame is treated as \code{NULL}.}
 \item{show_centroids}{Logical.  When \code{TRUE} (default) and \code{centroids} is
 non-\code{NULL}, centroid markers (crosshair circles) are drawn on the SVG to
 show their positions.  Set to \code{FALSE} to suppress markers.}
+
+\item{edge_labels}{Optional character matrix with the same dimensions as
+\code{adj_matrix}.  Each non-\code{NA}, non-empty cell provides an explicit text
+label for the corresponding structural edge.  When \code{NULL} (default) or
+for any cell that is \code{NA}/empty, the label falls back to the edge weight
+value if that weight is not 1, or no label otherwise.}
+
+\item{overlay_edge_labels}{Optional character matrix with the same
+dimensions as \code{adj_overlay}.  Same semantics as \code{edge_labels} but for
+overlay edges.  Ignored when \code{adj_overlay} is \code{NULL}.}
+
+\item{edge_props}{Optional \code{data.frame} mapping structural edge weight values
+to visual properties.  Recognised columns:
+\describe{
+\item{\code{weight}}{Numeric (required).  The adj_matrix cell value this row
+applies to.}
+\item{\code{colour}}{Character.  Edge stroke colour.  Defaults to
+\code{edge_colour} when absent or \code{NA}.}
+\item{\code{width}}{Numeric.  Stroke width in pixels.  Defaults to
+\code{edge_width} when absent or \code{NA}.}
+\item{\code{linetype}}{Character.  One of \code{"solid"} (default), \code{"dashed"},
+\code{"dotted"}, \code{"longdash"}, \code{"twodash"}.}
+\item{\code{label}}{Character.  Legend entry text for this weight/style.
+Used when \code{show_legend = TRUE}.}
+}
+When \code{NULL} (default), all structural edges use \code{edge_colour},
+\code{edge_width}, and solid linetype.  Weights not present in the table fall
+back to those global defaults.}
+
+\item{overlay_edge_props}{Optional \code{data.frame} with the same columns as
+\code{edge_props} but applied to overlay edges.  Weights not present fall back
+to \code{overlay_edge_colour}, \code{overlay_edge_width}, \code{overlay_edge_style}.}
+
+\item{show_legend}{Logical.  When \code{TRUE}, an SVG legend is appended below
+the graph explaining node shapes, node colours, and edge linetypes.
+Default \code{FALSE}.}
+
+\item{legend_node_shape}{Named character vector mapping shape names to
+display labels, e.g. \code{c(rect = "Intervention", diamond = "Outcome")}.
+Used only when \code{show_legend = TRUE}.  \code{NULL} = no shape section in legend.}
+
+\item{legend_node_colour}{Named character vector mapping colour hex strings
+to display labels, e.g. \code{c("#e8f0fe" = "Category A")}.
+Used only when \code{show_legend = TRUE}.  \code{NULL} = no colour section in legend.}
+
+\item{legend_title}{Character string used as the legend title when
+\code{show_legend = TRUE}.  Default \code{"Legend"}.}
 }
 \value{
 Invisibly: a named list with elements \code{svg}, \code{dot}, \code{mermaid},

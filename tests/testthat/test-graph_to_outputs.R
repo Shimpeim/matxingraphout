@@ -500,3 +500,106 @@ test_that("both edges straight produces no arc paths", {
   edge_section <- sub("<!-- nodes -->.*", "", res$svg)
   expect_false(grepl(" A [0-9]", edge_section))
 })
+
+# ── Edge labels ───────────────────────────────────────────────────────────────
+
+test_that("edge_labels appear in SVG output", {
+  elbl <- matrix("", 2, 2, dimnames = list(.ids2, .ids2))
+  elbl["B", "A"] <- "myLabel"
+  res <- graph_to_outputs(.adj2, .nodes2,
+                          edge_labels  = elbl,
+                          svg_file     = NULL, dot_file = NULL, mermaid_file = NULL)
+  expect_true(grepl("myLabel", res$svg))
+})
+
+test_that("edge_labels appear in DOT output", {
+  elbl <- matrix("", 2, 2, dimnames = list(.ids2, .ids2))
+  elbl["B", "A"] <- "dotLabel"
+  res <- graph_to_outputs(.adj2, .nodes2,
+                          edge_labels  = elbl,
+                          svg_file     = NULL, dot_file = NULL, mermaid_file = NULL)
+  expect_true(grepl("dotLabel", res$dot))
+})
+
+test_that("edge_labels appear in Mermaid output", {
+  elbl <- matrix("", 2, 2, dimnames = list(.ids2, .ids2))
+  elbl["B", "A"] <- "mmdLabel"
+  res <- graph_to_outputs(.adj2, .nodes2,
+                          edge_labels  = elbl,
+                          svg_file     = NULL, dot_file = NULL, mermaid_file = NULL)
+  expect_true(grepl("mmdLabel", res$mermaid))
+})
+
+test_that("wrong-dimension edge_labels raises error", {
+  bad_lbl <- matrix("x", 3, 3)
+  expect_error(
+    graph_to_outputs(.adj2, .nodes2,
+                     edge_labels  = bad_lbl,
+                     svg_file     = NULL, dot_file = NULL, mermaid_file = NULL),
+    "edge_labels"
+  )
+})
+
+test_that("multi-line label via \\\\n in node label renders two text elements", {
+  nodes_nl <- .nodes2
+  nodes_nl$label[1] <- "Line1\\nLine2"
+  # Apply same gsub as Shiny app does before calling graph_to_outputs
+  nodes_nl$label <- gsub("\\n", "\n", nodes_nl$label, fixed = TRUE)
+  res <- graph_to_outputs(.adj2, nodes_nl,
+                          svg_file = NULL, dot_file = NULL, mermaid_file = NULL)
+  # Should have two <text> elements for the first node
+  lines <- unlist(strsplit(res$svg, "\n"))
+  node_texts <- grep("Line[12]", lines, value = TRUE)
+  expect_length(node_texts, 2L)
+})
+
+# ── Edge properties (per-weight styling) ──────────────────────────────────────
+
+test_that("edge_props: custom colour appears in SVG", {
+  ep <- data.frame(weight=1, colour="#ff0000", width=2, linetype="solid",
+                   label=NA_character_, stringsAsFactors=FALSE)
+  res <- graph_to_outputs(.adj2, .nodes2, edge_props = ep,
+                          svg_file=NULL, dot_file=NULL, mermaid_file=NULL)
+  expect_true(grepl("#ff0000", res$svg, fixed=TRUE))
+})
+
+test_that("edge_props: dashed linetype produces stroke-dasharray in SVG", {
+  ep <- data.frame(weight=1, colour="#444444", width=1.5, linetype="dashed",
+                   label=NA_character_, stringsAsFactors=FALSE)
+  res <- graph_to_outputs(.adj2, .nodes2, edge_props = ep,
+                          svg_file=NULL, dot_file=NULL, mermaid_file=NULL)
+  expect_true(grepl("stroke-dasharray", res$svg, fixed=TRUE))
+})
+
+test_that("edge_props: invalid data.frame (no weight column) raises error", {
+  bad_ep <- data.frame(colour="#ff0000", stringsAsFactors=FALSE)
+  expect_error(
+    graph_to_outputs(.adj2, .nodes2, edge_props = bad_ep,
+                     svg_file=NULL, dot_file=NULL, mermaid_file=NULL),
+    "edge_props"
+  )
+})
+
+test_that("show_legend=TRUE extends SVG height and contains legend text", {
+  res <- graph_to_outputs(.adj2, .nodes2,
+                          show_legend = TRUE,
+                          legend_node_shape  = c(rect = "Box node"),
+                          legend_node_colour = c("#e8f0fe" = "Blue group"),
+                          legend_title = "My Legend",
+                          svg_file=NULL, dot_file=NULL, mermaid_file=NULL)
+  # Check legend section comment is present
+  expect_true(grepl("<!-- legend -->", res$svg, fixed=TRUE))
+  # Check title text is present
+  expect_true(grepl("My Legend", res$svg, fixed=TRUE))
+  # Check shape label is present
+  expect_true(grepl("Box node", res$svg, fixed=TRUE))
+  # Check colour label is present
+  expect_true(grepl("Blue group", res$svg, fixed=TRUE))
+})
+
+test_that("show_legend=FALSE produces no legend section", {
+  res <- graph_to_outputs(.adj2, .nodes2,
+                          show_legend = FALSE,
+                          svg_file=NULL, dot_file=NULL, mermaid_file=NULL)
+  expect_false(grepl("<!-- legend -->", res$svg, fixed=TRUE))
+})

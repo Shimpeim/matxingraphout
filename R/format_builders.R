@@ -8,13 +8,24 @@
 #' @noRd
 .dot_build <- function(adj, np, directed,
                        adj_ov = NULL, ovcol = "#999999",
-                       ovw = 1.0, ovstyle = "dashed") {
+                       ovw = 1.0, ovstyle = "dashed",
+                       edge_labels = NULL,
+                       overlay_edge_labels = NULL,
+                       edge_props = NULL,
+                       overlay_edge_props = NULL) {
   n   <- nrow(adj)
   gkw <- if (directed) "digraph" else "graph"
   eop <- if (directed) "->"     else "--"
 
   # Wrap a string in double-quotes, escaping any internal double-quotes
   .dq <- function(s) paste0('"', gsub('"', '\\"', s, fixed = TRUE), '"')
+
+  .dot_lt <- function(lt) {
+    switch(tolower(trimws(as.character(lt))),
+      dashed = "dashed", dotted = "dotted", longdash = "dashed", twodash = "dashed",
+      "solid"
+    )
+  }
 
   dot_shape <- function(s) {
     switch(tolower(trimws(s)),
@@ -71,7 +82,35 @@
     for (j in seq_len(n)) {
       v <- adj[i, j]
       if (v == 0 || (!directed && done[j, i])) next
-      elbl    <- if (v != 1) paste0(" [label=", .dq(format(v, trim = TRUE)), "]") else ""
+      lbl_txt <- NULL
+      if (!is.null(edge_labels) && !is.na(edge_labels[i, j]) &&
+          nzchar(trimws(as.character(edge_labels[i, j]))))
+        lbl_txt <- trimws(as.character(edge_labels[i, j]))
+      else if (v != 1)
+        lbl_txt <- format(v, trim = TRUE)
+      # Per-edge visual style from edge_props
+      ep_col <- if (!is.null(edge_props)) {
+        idx <- which(edge_props$weight == v)
+        if (length(idx) > 0L && "colour" %in% names(edge_props) && !is.na(edge_props$colour[idx[1L]]))
+          edge_props$colour[idx[1L]] else NULL
+      } else NULL
+      ep_w  <- if (!is.null(edge_props)) {
+        idx <- which(edge_props$weight == v)
+        if (length(idx) > 0L && "width" %in% names(edge_props) && !is.na(edge_props$width[idx[1L]]))
+          edge_props$width[idx[1L]] else NULL
+      } else NULL
+      ep_lt <- if (!is.null(edge_props)) {
+        idx <- which(edge_props$weight == v)
+        if (length(idx) > 0L && "linetype" %in% names(edge_props) && !is.na(edge_props$linetype[idx[1L]]))
+          edge_props$linetype[idx[1L]] else NULL
+      } else NULL
+      ep_attrs <- c(
+        if (!is.null(lbl_txt))  paste0("label=",    .dq(lbl_txt)),
+        if (!is.null(ep_col))   paste0("color=",    .dq(ep_col)),
+        if (!is.null(ep_w))     paste0("penwidth=",  ep_w),
+        if (!is.null(ep_lt))    paste0("style=",    .dq(.dot_lt(ep_lt)))
+      )
+      elbl <- if (length(ep_attrs) > 0L) paste0(" [", paste(ep_attrs, collapse = ", "), "]") else ""
       out     <- c(out, paste0("  ", .dq(np$id[i]), " ", eop, " ",
                                .dq(np$id[j]), elbl))
       done[i, j] <- TRUE
@@ -80,16 +119,38 @@
 
   if (!is.null(adj_ov)) {
     n_ov   <- nrow(adj_ov)
-    ov_dot_style <- paste0('style=', .dq(ovstyle),
-                           ', color=', .dq(ovcol),
-                           ', penwidth=', ovw)
     out  <- c(out, "", "  // overlay edges")
     done_ov <- matrix(FALSE, n_ov, n_ov)
     for (i in seq_len(n_ov)) {
       for (j in seq_len(n_ov)) {
         v <- adj_ov[i, j]
         if (v == 0 || (!directed && done_ov[j, i])) next
-        elbl <- if (v != 1) paste0(" label=", .dq(format(v, trim = TRUE)), ",") else " "
+        ov_lbl_txt <- NULL
+        if (!is.null(overlay_edge_labels) && !is.na(overlay_edge_labels[i, j]) &&
+            nzchar(trimws(as.character(overlay_edge_labels[i, j]))))
+          ov_lbl_txt <- trimws(as.character(overlay_edge_labels[i, j]))
+        else if (v != 1)
+          ov_lbl_txt <- format(v, trim = TRUE)
+        # Per-overlay-edge visual style from overlay_edge_props
+        ovep_col <- if (!is.null(overlay_edge_props)) {
+          idx <- which(overlay_edge_props$weight == v)
+          if (length(idx) > 0L && "colour" %in% names(overlay_edge_props) && !is.na(overlay_edge_props$colour[idx[1L]]))
+            overlay_edge_props$colour[idx[1L]] else ovcol
+        } else ovcol
+        ovep_w  <- if (!is.null(overlay_edge_props)) {
+          idx <- which(overlay_edge_props$weight == v)
+          if (length(idx) > 0L && "width" %in% names(overlay_edge_props) && !is.na(overlay_edge_props$width[idx[1L]]))
+            overlay_edge_props$width[idx[1L]] else ovw
+        } else ovw
+        ovep_lt <- if (!is.null(overlay_edge_props)) {
+          idx <- which(overlay_edge_props$weight == v)
+          if (length(idx) > 0L && "linetype" %in% names(overlay_edge_props) && !is.na(overlay_edge_props$linetype[idx[1L]]))
+            .dot_lt(overlay_edge_props$linetype[idx[1L]]) else ovstyle
+        } else ovstyle
+        ov_dot_style <- paste0('style=', .dq(ovep_lt),
+                               ', color=', .dq(ovep_col),
+                               ', penwidth=', ovep_w)
+        elbl <- if (!is.null(ov_lbl_txt)) paste0(" label=", .dq(ov_lbl_txt), ",") else " "
         out  <- c(out, paste0("  ", .dq(np$id[i]), " ", eop, " ",
                               .dq(np$id[j]), " [", elbl, ov_dot_style, "]"))
         done_ov[i, j] <- TRUE
@@ -107,7 +168,11 @@
 #' @keywords internal
 #' @noRd
 .mmd_build <- function(adj, np, directed,
-                       adj_ov = NULL, ovstyle = "dashed") {
+                       adj_ov = NULL, ovstyle = "dashed",
+                       edge_labels = NULL,
+                       overlay_edge_labels = NULL,
+                       edge_props = NULL,
+                       overlay_edge_props = NULL) {
   n <- nrow(adj)
 
   # Sanitise to a valid Mermaid node identifier: [A-Za-z0-9_], no leading digit
@@ -156,9 +221,25 @@
     for (j in seq_len(n)) {
       v <- adj[i, j]
       if (v == 0 || (!directed && done[j, i])) next
-      lbl_part <- if (v != 1) paste0('|"', format(v, trim = TRUE), '"|') else ""
+      lbl_txt <- NULL
+      if (!is.null(edge_labels) && !is.na(edge_labels[i, j]) &&
+          nzchar(trimws(as.character(edge_labels[i, j]))))
+        lbl_txt <- trimws(as.character(edge_labels[i, j]))
+      else if (v != 1)
+        lbl_txt <- format(v, trim = TRUE)
+      lbl_part <- if (!is.null(lbl_txt)) paste0('|"', lbl_txt, '"|') else ""
+      # Per-edge Mermaid operator based on linetype
+      ep_lt_mmd <- NULL
+      if (!is.null(edge_props)) {
+        idx <- which(edge_props$weight == v)
+        if (length(idx) > 0L && "linetype" %in% names(edge_props) && !is.na(edge_props$linetype[idx[1L]]))
+          ep_lt_mmd <- edge_props$linetype[idx[1L]]
+      }
+      eop_this <- if (!is.null(ep_lt_mmd) && ep_lt_mmd != "solid") {
+        if (directed) "-.->" else "-.-"
+      } else eop
       out  <- c(out, sprintf("  %s %s%s %s",
-                             .mid(np$id[i]), eop, lbl_part, .mid(np$id[j])))
+                             .mid(np$id[i]), eop_this, lbl_part, .mid(np$id[j])))
       done[i, j] <- TRUE
     }
   }
@@ -177,9 +258,29 @@
       for (j in seq_len(n_ov)) {
         v <- adj_ov[i, j]
         if (v == 0 || (!directed && done_ov[j, i])) next
-        lbl_part <- if (v != 1) paste0('|"', format(v, trim = TRUE), '"|') else ""
+        ov_lbl_txt <- NULL
+        if (!is.null(overlay_edge_labels) && !is.na(overlay_edge_labels[i, j]) &&
+            nzchar(trimws(as.character(overlay_edge_labels[i, j]))))
+          ov_lbl_txt <- trimws(as.character(overlay_edge_labels[i, j]))
+        else if (v != 1)
+          ov_lbl_txt <- format(v, trim = TRUE)
+        lbl_part <- if (!is.null(ov_lbl_txt)) paste0('|"', ov_lbl_txt, '"|') else ""
+        # Per-overlay-edge Mermaid operator based on linetype
+        ovep_lt_mmd <- NULL
+        if (!is.null(overlay_edge_props)) {
+          idx <- which(overlay_edge_props$weight == v)
+          if (length(idx) > 0L && "linetype" %in% names(overlay_edge_props) && !is.na(overlay_edge_props$linetype[idx[1L]]))
+            ovep_lt_mmd <- overlay_edge_props$linetype[idx[1L]]
+        }
+        ov_eop_this <- if (!is.null(ovep_lt_mmd)) {
+          if (ovep_lt_mmd != "solid") {
+            if (directed) "-.->" else "-.-"
+          } else {
+            if (directed) "-->" else "---"
+          }
+        } else ov_eop
         out  <- c(out, sprintf("  %s %s%s %s",
-                               .mid(np$id[i]), ov_eop, lbl_part, .mid(np$id[j])))
+                               .mid(np$id[i]), ov_eop_this, lbl_part, .mid(np$id[j])))
         done_ov[i, j] <- TRUE
       }
     }

@@ -118,6 +118,45 @@
 #' @param show_centroids Logical.  When `TRUE` (default) and `centroids` is
 #'   non-`NULL`, centroid markers (crosshair circles) are drawn on the SVG to
 #'   show their positions.  Set to `FALSE` to suppress markers.
+#' @param edge_labels Optional character matrix with the same dimensions as
+#'   `adj_matrix`.  Each non-`NA`, non-empty cell provides an explicit text
+#'   label for the corresponding structural edge.  When `NULL` (default) or
+#'   for any cell that is `NA`/empty, the label falls back to the edge weight
+#'   value if that weight is not 1, or no label otherwise.
+#' @param overlay_edge_labels Optional character matrix with the same
+#'   dimensions as `adj_overlay`.  Same semantics as `edge_labels` but for
+#'   overlay edges.  Ignored when `adj_overlay` is `NULL`.
+#' @param edge_props Optional `data.frame` mapping structural edge weight values
+#'   to visual properties.  Recognised columns:
+#'   \describe{
+#'     \item{`weight`}{Numeric (required).  The adj_matrix cell value this row
+#'       applies to.}
+#'     \item{`colour`}{Character.  Edge stroke colour.  Defaults to
+#'       `edge_colour` when absent or `NA`.}
+#'     \item{`width`}{Numeric.  Stroke width in pixels.  Defaults to
+#'       `edge_width` when absent or `NA`.}
+#'     \item{`linetype`}{Character.  One of `"solid"` (default), `"dashed"`,
+#'       `"dotted"`, `"longdash"`, `"twodash"`.}
+#'     \item{`label`}{Character.  Legend entry text for this weight/style.
+#'       Used when `show_legend = TRUE`.}
+#'   }
+#'   When `NULL` (default), all structural edges use `edge_colour`,
+#'   `edge_width`, and solid linetype.  Weights not present in the table fall
+#'   back to those global defaults.
+#' @param overlay_edge_props Optional `data.frame` with the same columns as
+#'   `edge_props` but applied to overlay edges.  Weights not present fall back
+#'   to `overlay_edge_colour`, `overlay_edge_width`, `overlay_edge_style`.
+#' @param show_legend Logical.  When `TRUE`, an SVG legend is appended below
+#'   the graph explaining node shapes, node colours, and edge linetypes.
+#'   Default `FALSE`.
+#' @param legend_node_shape Named character vector mapping shape names to
+#'   display labels, e.g. `c(rect = "Intervention", diamond = "Outcome")`.
+#'   Used only when `show_legend = TRUE`.  `NULL` = no shape section in legend.
+#' @param legend_node_colour Named character vector mapping colour hex strings
+#'   to display labels, e.g. `c("#e8f0fe" = "Category A")`.
+#'   Used only when `show_legend = TRUE`.  `NULL` = no colour section in legend.
+#' @param legend_title Character string used as the legend title when
+#'   `show_legend = TRUE`.  Default `"Legend"`.
 #'
 #' @return Invisibly: a named list with elements `svg`, `dot`, `mermaid`,
 #'   `clean_svg`, and `topology`.  The first three are character strings containing the full
@@ -209,7 +248,15 @@ graph_to_outputs <- function(
     edge_curvature          = "auto",
     overlay_edge_curvature  = "auto",
     centroids               = NULL,
-    show_centroids          = TRUE
+    show_centroids          = TRUE,
+    edge_labels             = NULL,
+    overlay_edge_labels     = NULL,
+    edge_props              = NULL,
+    overlay_edge_props      = NULL,
+    show_legend             = FALSE,
+    legend_node_shape       = NULL,
+    legend_node_colour      = NULL,
+    legend_title            = "Legend"
 ) {
 
   # ── 0. Validate & normalise inputs ─────────────────────────────────────────
@@ -297,6 +344,40 @@ graph_to_outputs <- function(
     overlay_edge_style <- match.arg(overlay_edge_style, c("dashed", "solid"))
   }
 
+  # ── 0c. Validate edge label matrices ────────────────────────────────────────
+  if (!is.null(edge_labels)) {
+    if (!is.matrix(edge_labels) ||
+        !identical(dim(edge_labels), dim(adj_matrix)))
+      stop("edge_labels must be a character matrix with the same dimensions as adj_matrix.")
+    edge_labels <- matrix(as.character(edge_labels), nrow = nrow(edge_labels),
+                          ncol = ncol(edge_labels),
+                          dimnames = dimnames(edge_labels))
+  }
+  if (!is.null(overlay_edge_labels)) {
+    if (!is.matrix(overlay_edge_labels) ||
+        !identical(dim(overlay_edge_labels), dim(adj_matrix)))
+      stop("overlay_edge_labels must be a character matrix with the same dimensions as adj_matrix.")
+    overlay_edge_labels <- matrix(as.character(overlay_edge_labels),
+                                  nrow = nrow(overlay_edge_labels),
+                                  ncol = ncol(overlay_edge_labels),
+                                  dimnames = dimnames(overlay_edge_labels))
+  }
+
+  # ── 0d. Validate edge_props / overlay_edge_props ────────────────────────────
+  .validate_edge_props <- function(ep, nm) {
+    if (is.null(ep)) return(NULL)
+    if (!is.data.frame(ep) || !"weight" %in% names(ep))
+      stop(nm, " must be a data.frame with at least a 'weight' column.")
+    ep$weight <- as.numeric(ep$weight)
+    if ("colour"   %in% names(ep)) ep$colour   <- as.character(ep$colour)
+    if ("width"    %in% names(ep)) ep$width     <- as.numeric(ep$width)
+    if ("linetype" %in% names(ep)) ep$linetype  <- as.character(ep$linetype)
+    if ("label"    %in% names(ep)) ep$label     <- as.character(ep$label)
+    ep
+  }
+  edge_props         <- .validate_edge_props(edge_props,         "edge_props")
+  overlay_edge_props <- .validate_edge_props(overlay_edge_props, "overlay_edge_props")
+
   # ── 0b. Topological analysis ────────────────────────────────────────────────
   topo <- .graph_topology(adj_matrix,
                           sunburst_max_depth, sunburst_min_branching)
@@ -363,12 +444,28 @@ graph_to_outputs <- function(
                         centroids              = centroids,
                         edge_curvature         = edge_curvature,
                         overlay_edge_curvature = overlay_edge_curvature,
-                        show_centroids         = show_centroids)
+                        show_centroids         = show_centroids,
+                        edge_labels            = edge_labels,
+                        overlay_edge_labels    = overlay_edge_labels,
+                        edge_props             = edge_props,
+                        overlay_edge_props     = overlay_edge_props,
+                        show_legend            = show_legend,
+                        legend_node_shape      = legend_node_shape,
+                        legend_node_colour     = legend_node_colour,
+                        legend_title           = legend_title)
   dot_str <- .dot_build(adj_matrix, node_props, directed,
                         adj_overlay, overlay_edge_colour,
-                        overlay_edge_width, overlay_edge_style)
+                        overlay_edge_width, overlay_edge_style,
+                        edge_labels         = edge_labels,
+                        overlay_edge_labels = overlay_edge_labels,
+                        edge_props          = edge_props,
+                        overlay_edge_props  = overlay_edge_props)
   mmd_str <- .mmd_build(adj_matrix, node_props, directed,
-                        adj_overlay, overlay_edge_style)
+                        adj_overlay, overlay_edge_style,
+                        edge_labels         = edge_labels,
+                        overlay_edge_labels = overlay_edge_labels,
+                        edge_props          = edge_props,
+                        overlay_edge_props  = overlay_edge_props)
 
   # ── 4. Write files ─────────────────────────────────────────────────────────
   .write_if <- function(path, content, label) {
