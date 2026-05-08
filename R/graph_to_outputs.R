@@ -595,10 +595,12 @@ graph_to_outputs <- function(
   # ── Radii: rank 0 = 0 (centre), each rank adds one ring ──────────────────
   nw       <- if ("width"  %in% names(node_props)) node_props$width  else default_width
   nh       <- if ("height" %in% names(node_props)) node_props$height else default_height
-  ring_gap <- max(max(nw, na.rm = TRUE), max(nh, na.rm = TRUE)) * 2.2
+  nw_max   <- if (any(is.finite(nw))) max(nw, na.rm = TRUE) else default_width
+  nh_max   <- if (any(is.finite(nh))) max(nh, na.rm = TRUE) else default_height
+  ring_gap <- max(nw_max, nh_max) * 2.2
   radii    <- rank * ring_gap
 
-  outer_r  <- max(radii) + max(max(nw, na.rm = TRUE), max(nh, na.rm = TRUE))
+  outer_r  <- max(radii) + max(nw_max, nh_max)
   cx       <- svg_padding + outer_r
   cy       <- svg_padding + outer_r
 
@@ -647,12 +649,14 @@ graph_to_outputs <- function(
   }
 
   # ── Convert to pixel coordinates ─────────────────────────────────────────
-  nw     <- if ("width"  %in% names(node_props)) node_props$width  else default_width
-  nh     <- if ("height" %in% names(node_props)) node_props$height else default_height
-  h_gap  <- max(nw, na.rm = TRUE) * 1.6
-  v_gap  <- max(nh, na.rm = TRUE) * 2.2
-  half_w <- max(nw, na.rm = TRUE) / 2
-  half_h <- max(nh, na.rm = TRUE) / 2
+  nw      <- if ("width"  %in% names(node_props)) node_props$width  else default_width
+  nh      <- if ("height" %in% names(node_props)) node_props$height else default_height
+  nw_max  <- if (any(is.finite(nw))) max(nw, na.rm = TRUE) else default_width
+  nh_max  <- if (any(is.finite(nh))) max(nh, na.rm = TRUE) else default_height
+  h_gap   <- nw_max * 1.6
+  v_gap   <- nh_max * 2.2
+  half_w  <- nw_max / 2
+  half_h  <- nh_max / 2
 
   node_props$x <- svg_padding + half_w + (x_slot - 1) * h_gap
   node_props$y <- svg_padding + half_h + rank * v_gap
