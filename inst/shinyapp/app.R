@@ -619,7 +619,11 @@ document.addEventListener('DOMContentLoaded', function() {
         fileInput("csv_edge_props",    "Edge properties (.csv)", accept = ".csv",
                   placeholder = "edge_props.csv"),
         fileInput("csv_overlay_props", "Overlay edge properties (.csv)", accept = ".csv",
-                  placeholder = "overlay_edge_props.csv")
+                  placeholder = "overlay_edge_props.csv"),
+        fileInput("csv_legend_shapes",  "Legend shapes (.csv)", accept = ".csv",
+                  placeholder = "legend_shapes.csv"),
+        fileInput("csv_legend_colours", "Legend colours (.csv)", accept = ".csv",
+                  placeholder = "legend_colours.csv")
       )
     ),
 
@@ -705,6 +709,7 @@ server <- function(input, output, session) {
                                      stringsAsFactors=FALSE),
     legend_colours     = data.frame(colour=character(0), label=character(0),
                                      stringsAsFactors=FALSE),
+    import_ver       = 0L,
     result           = NULL,
     error            = NULL
   )
@@ -811,8 +816,8 @@ server <- function(input, output, session) {
     )
   }
 
-  output$adj_matrix_ui <- renderUI({ make_matrix_ui(rv$nodes$id, "adj") })
-  output$ovl_matrix_ui <- renderUI({ make_matrix_ui(rv$nodes$id, "ovl") })
+  output$adj_matrix_ui <- renderUI({ rv$import_ver; make_matrix_ui(rv$nodes$id, "adj") })
+  output$ovl_matrix_ui <- renderUI({ rv$import_ver; make_matrix_ui(rv$nodes$id, "ovl") })
 
   make_label_matrix_ui <- function(ids, prefix) {
     n <- length(ids)
@@ -895,6 +900,7 @@ server <- function(input, output, session) {
   })
 
   output$edge_label_matrix_ui <- renderUI({
+    rv$import_ver
     make_label_matrix_ui(rv$nodes$id, "elbl")
   })
 
@@ -1007,6 +1013,7 @@ server <- function(input, output, session) {
     req("id" %in% names(df))
     rv$nodes <- df
     sync_ids()
+    rv$import_ver <- rv$import_ver + 1L
     rv$error <- NULL
   })
 
@@ -1033,6 +1040,7 @@ server <- function(input, output, session) {
       rv$nodes <- kept
     }
     sync_ids()
+    rv$import_ver <- rv$import_ver + 1L
     rv$error <- NULL
   })
 
@@ -1042,6 +1050,7 @@ server <- function(input, output, session) {
                     error = function(e) { rv$error <- paste("Edge label CSV:", e$message); NULL })
     if (is.null(mat)) return()
     rv$edge_labels <- mat
+    rv$import_ver <- rv$import_ver + 1L
     rv$error <- NULL
   })
 
@@ -1051,6 +1060,7 @@ server <- function(input, output, session) {
                     error = function(e) { rv$error <- paste("Overlay CSV:", e$message); NULL })
     if (is.null(mat)) return()
     rv$overlay <- mat
+    rv$import_ver <- rv$import_ver + 1L
     rv$error   <- NULL
   })
 
@@ -1071,6 +1081,42 @@ server <- function(input, output, session) {
     if (is.null(df) || !"weight" %in% tolower(names(df))) return()
     names(df) <- tolower(names(df))
     rv$overlay_edge_props <- df
+    rv$error <- NULL
+  })
+
+  observeEvent(input$csv_legend_shapes, {
+    req(input$csv_legend_shapes)
+    df <- tryCatch({
+      d <- read.csv(input$csv_legend_shapes$datapath, header = TRUE,
+                    stringsAsFactors = FALSE)
+      names(d) <- tolower(trimws(names(d)))
+      d
+    }, error = function(e) { rv$error <- paste("Legend shapes CSV:", e$message); NULL })
+    if (is.null(df)) return()
+    if (!all(c("shape","label") %in% names(df))) {
+      rv$error <- "Legend shapes CSV must have columns: shape, label"
+      return()
+    }
+    rv$legend_shapes <- df[, c("shape","label"), drop = FALSE]
+    rv$error <- NULL
+  })
+
+  observeEvent(input$csv_legend_colours, {
+    req(input$csv_legend_colours)
+    df <- tryCatch({
+      d <- read.csv(input$csv_legend_colours$datapath, header = TRUE,
+                    stringsAsFactors = FALSE)
+      names(d) <- tolower(trimws(names(d)))
+      if ("color" %in% names(d) && !"colour" %in% names(d))
+        names(d)[names(d) == "color"] <- "colour"
+      d
+    }, error = function(e) { rv$error <- paste("Legend colours CSV:", e$message); NULL })
+    if (is.null(df)) return()
+    if (!all(c("colour","label") %in% names(df))) {
+      rv$error <- "Legend colours CSV must have columns: colour (or color), label"
+      return()
+    }
+    rv$legend_colours <- df[, c("colour","label"), drop = FALSE]
     rv$error <- NULL
   })
 
@@ -1123,6 +1169,11 @@ server <- function(input, output, session) {
       updateNumericInput(session, "circle_cx", value = as.numeric(s$circle_cx))
     if (!is.null(s$circle_cy))
       updateNumericInput(session, "circle_cy", value = as.numeric(s$circle_cy))
+    if (!is.null(s$show_legend))
+      updateCheckboxInput(session, "show_legend",
+                          value = tolower(trimws(s$show_legend)) %in% c("true","1","yes"))
+    if (!is.null(s$legend_title))
+      updateTextInput(session, "legend_title", value = s$legend_title)
     rv$error <- NULL
   })
 
