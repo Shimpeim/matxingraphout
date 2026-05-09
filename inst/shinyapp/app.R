@@ -234,6 +234,27 @@ function reattach() {
   };
 
   svg.onclick = function(e) {
+    // Walk up from the clicked element to find the nearest centroid-marker group.
+    // This event-delegation approach works for any centroid marker without
+    // needing per-element onclick re-attachment after each SVG update.
+    var el = e.target, markerG = null;
+    while (el && el !== svg) {
+      if (el.getAttribute && el.getAttribute('data-centroid-idx') !== null) {
+        markerG = el;
+        break;
+      }
+      el = el.parentNode;
+    }
+    if (markerG) {
+      e.stopPropagation();
+      if (mode === 'remove') {
+        var idx = parseInt(markerG.getAttribute('data-centroid-idx'), 10);
+        Shiny.setInputValue('centroid_remove_idx', idx, { priority: 'event' });
+        markerG.parentNode.removeChild(markerG);
+      }
+      return;
+    }
+    // Click was not on a centroid marker
     if (mode === 'add') {
       var pos  = svgPos(e, svg);
       var orig = toOrig(pos.cx, pos.cy);
@@ -241,17 +262,6 @@ function reattach() {
       drawTempMarker(svg, pos.cx, pos.cy);
     }
   };
-
-  svg.querySelectorAll('g[data-centroid-idx]').forEach(function(g) {
-    g.onclick = function(e) {
-      e.stopPropagation(); // always block svg.onclick to prevent adding centroid on top
-      if (mode === 'remove') {
-        var idx = parseInt(g.getAttribute('data-centroid-idx'), 10);
-        Shiny.setInputValue('centroid_remove_idx', idx, { priority: 'event' });
-        g.parentNode.removeChild(g);
-      }
-    };
-  });
   updateCursors();
 }
 
@@ -273,7 +283,7 @@ function drawTempMarker(svg, cx, cy) {
   circle.setAttribute('cy', cy);
   circle.setAttribute('r',  '9');
   circle.setAttribute('fill', '#e53e3e');
-  circle.setAttribute('fill-opacity', '0.25');
+  circle.setAttribute('fill-opacity', '0.65');
   circle.setAttribute('stroke', '#e53e3e');
   circle.setAttribute('stroke-width', '1.5');
   g.appendChild(circle);
@@ -925,11 +935,16 @@ server <- function(input, output, session) {
   })
 
   observeEvent(input$add_centroid, {
+    # Default position: centre of the current node cloud (always within viewBox)
+    cx_def <- tryCatch(round(mean(as.numeric(rv$nodes$x), na.rm = TRUE)), error = function(e) 200L)
+    cy_def <- tryCatch(round(mean(as.numeric(rv$nodes$y), na.rm = TRUE)), error = function(e) 200L)
+    if (is.na(cx_def) || !is.finite(cx_def)) cx_def <- 200L
+    if (is.na(cy_def) || !is.finite(cy_def)) cy_def <- 200L
     i <- nrow(rv$centroids) + 1L
     rv$centroids <- rbind(rv$centroids, data.frame(
       label = paste0("C", i),
-      x     = 200,
-      y     = 200,
+      x     = cx_def,
+      y     = cy_def,
       stringsAsFactors = FALSE
     ))
   })

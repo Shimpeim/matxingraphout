@@ -195,7 +195,8 @@
   .emit('<?xml version="1.0" encoding="UTF-8"?>')
   .emit('<svg xmlns="http://www.w3.org/2000/svg"',
         ' width="',  round(W), '" height="', round(H_total), '"',
-        ' viewBox="0 0 ', round(W), ' ', round(H_total), '">')
+        ' viewBox="0 0 ', round(W), ' ', round(H_total), '"',
+        ' overflow="visible">')
 
   if (directed) {
     .emit('  <defs>')
@@ -527,7 +528,7 @@
               else paste0("C", k)
       .emit('  <g class="centroid-marker" data-centroid-idx="', k - 1L, '" style="cursor:pointer">')
       .emit('    <circle cx="', cx_k, '" cy="', cy_k, '" r="12"',
-            ' fill="#e53e3e" fill-opacity="0.40"',
+            ' fill="#e53e3e" fill-opacity="0.65"',
             ' stroke="#e53e3e" stroke-width="2"/>')
       .emit('    <line x1="', cx_k - 16, '" y1="', cy_k,
             '" x2="', cx_k + 16, '" y2="', cy_k,
