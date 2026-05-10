@@ -1484,6 +1484,8 @@ server <- function(input, output, session) {
       }
       if (any_label) edge_labels_arg <- elbl_m
     }
+    if (!is.null(edge_labels_arg))
+      edge_labels_arg[] <- gsub("\\n", "\n", edge_labels_arg, fixed = TRUE)
     rv$edge_labels_arg <- edge_labels_arg
 
     # Centroids: empty table → NULL (falls back to eigenvector hub mode)

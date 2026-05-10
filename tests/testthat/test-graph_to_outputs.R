@@ -540,6 +540,18 @@ test_that("wrong-dimension edge_labels raises error", {
   )
 })
 
+test_that("multi-line edge label renders one text element per line", {
+  elbl <- matrix("", 2, 2, dimnames = list(.ids2, .ids2))
+  # Use actual newline (as produced by app.R gsub before calling graph_to_outputs)
+  elbl["B", "A"] <- "line one\nline two"
+  res <- graph_to_outputs(.adj2, .nodes2,
+                          edge_labels  = elbl,
+                          svg_file     = NULL, dot_file = NULL, mermaid_file = NULL)
+  svg_lines <- unlist(strsplit(res$svg, "\n"))
+  lbl_texts <- grep("line one|line two", svg_lines, value = TRUE)
+  expect_length(lbl_texts, 2L)
+})
+
 test_that("multi-line label via \\\\n in node label renders two text elements", {
   nodes_nl <- .nodes2
   nodes_nl$label[1] <- "Line1\\nLine2"

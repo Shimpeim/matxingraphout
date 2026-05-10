@@ -332,11 +332,18 @@
               lbl_x <- from[1] + .lf * (to[1] - from[1])
               lbl_y <- from[2] + .lf * (to[2] - from[2])
             }
-            .emit('  <text x="', round(lbl_x, 1), '" y="', round(lbl_y, 1), '"',
-                  ' text-anchor="middle" dominant-baseline="auto"',
-                  ' dy="-4" font-size="10" fill="', es$colour, '"',
-                  ' font-family="Helvetica,Arial,sans-serif">',
-                  .xml_esc(lbl_txt), '</text>')
+            lbl_lines <- strsplit(lbl_txt, "\n", fixed = TRUE)[[1]]
+            nl_e <- length(lbl_lines)
+            lh_e <- 13L   # line height at font-size 10
+            y0_e <- lbl_y - (nl_e - 1L) * lh_e / 2 - 4
+            for (.le in seq_along(lbl_lines)) {
+              .emit('  <text x="', round(lbl_x, 1), '" y="',
+                    round(y0_e + (.le - 1L) * lh_e, 1), '"',
+                    ' text-anchor="middle" dominant-baseline="auto"',
+                    ' font-size="10" fill="', es$colour, '"',
+                    ' font-family="Helvetica,Arial,sans-serif">',
+                    .xml_esc(lbl_lines[.le]), '</text>')
+            }
           }
         }
       }
@@ -446,11 +453,18 @@
                 ov_lbl_x <- from[1] + .lf_ov * (to[1] - from[1])
                 ov_lbl_y <- from[2] + .lf_ov * (to[2] - from[2])
               }
-              .emit('  <text x="', round(ov_lbl_x, 1), '" y="', round(ov_lbl_y, 1), '"',
-                    ' text-anchor="middle" dominant-baseline="auto"',
-                    ' dy="-4" font-size="10" fill="', ovs$colour, '"',
-                    ' font-family="Helvetica,Arial,sans-serif">',
-                    .xml_esc(ov_lbl_txt), '</text>')
+              ov_lbl_lines <- strsplit(ov_lbl_txt, "\n", fixed = TRUE)[[1]]
+              nl_ov_e <- length(ov_lbl_lines)
+              lh_ov_e <- 13L
+              y0_ov_e <- ov_lbl_y - (nl_ov_e - 1L) * lh_ov_e / 2 - 4
+              for (.lov in seq_along(ov_lbl_lines)) {
+                .emit('  <text x="', round(ov_lbl_x, 1), '" y="',
+                      round(y0_ov_e + (.lov - 1L) * lh_ov_e, 1), '"',
+                      ' text-anchor="middle" dominant-baseline="auto"',
+                      ' font-size="10" fill="', ovs$colour, '"',
+                      ' font-family="Helvetica,Arial,sans-serif">',
+                      .xml_esc(ov_lbl_lines[.lov]), '</text>')
+              }
             }
           }
           done_ov[i, j] <- TRUE
@@ -816,9 +830,12 @@
 
   label_bboxes <- list()
   add_lbl <- function(x, y, text) {
-    w  <- nchar(text) * CHAR_W + 2 * MARGIN
+    lns <- strsplit(text, "\n", fixed = TRUE)[[1]]
+    nl  <- length(lns)
+    w   <- max(nchar(lns)) * CHAR_W + 2 * MARGIN
+    ht  <- nl * LABEL_H + 2 * MARGIN
     label_bboxes[[length(label_bboxes) + 1L]] <<-
-      c(x - w / 2, y - LABEL_H - MARGIN, x + w / 2, y + MARGIN)
+      c(x - w / 2, y - ht / 2 - MARGIN, x + w / 2, y + ht / 2 + MARGIN)
   }
 
   # Structural edge labels
