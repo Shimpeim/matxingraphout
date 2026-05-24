@@ -5,9 +5,9 @@
 **matxingraphout** converts an adjacency matrix + node-property table into SVG,
 Graphviz DOT, and Mermaid flowchart outputs. No external R package dependencies.
 
-- Version: 0.3.8
+- Version: 0.3.10
 - GitHub: https://github.com/Shimpeim/matxingraphout
-- Test suite: 86 tests, all passing (run with `devtools::test()`)
+- Test suite: 92 tests, all passing (run with `devtools::test()`)
 
 ---
 

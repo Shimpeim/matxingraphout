@@ -37,6 +37,16 @@ resize_matrix <- function(old_m, new_ids) {
   new_m
 }
 
+resize_label_matrix <- function(old_m, new_ids) {
+  if (is.null(old_m)) return(NULL)
+  n     <- length(new_ids)
+  new_m <- matrix("", n, n, dimnames = list(new_ids, new_ids))
+  shared <- intersect(rownames(old_m), new_ids)
+  if (length(shared) > 0L)
+    new_m[shared, shared] <- old_m[shared, shared]
+  new_m
+}
+
 # Parse a square adjacency/label matrix CSV.
 # Expected: first column = row IDs (no header or blank header),
 #           remaining column headers = col IDs,
@@ -798,9 +808,10 @@ server <- function(input, output, session) {
   })
 
   sync_ids <- function() {
-    ids        <- rv$nodes$id
-    rv$adj     <- resize_matrix(rv$adj,     ids)
-    rv$overlay <- resize_matrix(rv$overlay, ids)
+    ids            <- rv$nodes$id
+    rv$adj         <- resize_matrix(rv$adj,           ids)
+    rv$overlay     <- resize_matrix(rv$overlay,       ids)
+    rv$edge_labels <- resize_label_matrix(rv$edge_labels, ids)
   }
 
   # Add node
@@ -1464,26 +1475,29 @@ server <- function(input, output, session) {
     circle_cx <- if (isTRUE(input$circle_cx == 0)) NULL else input$circle_cx
     circle_cy <- if (isTRUE(input$circle_cy == 0)) NULL else input$circle_cy
 
-    # Read edge labels from grid inputs (if any cell is non-empty)
+    # Read edge labels: grid inputs take priority; rv$edge_labels is fallback
+    # (mirrors adj matrix pattern — grid is authoritative once rendered)
     edge_labels_arg <- NULL
     ids_for_lbl <- ids
     n_lbl <- length(ids_for_lbl)
-    if (!is.null(rv$edge_labels) &&
-        identical(dim(rv$edge_labels), c(n_lbl, n_lbl))) {
-      edge_labels_arg <- rv$edge_labels
-    } else {
-      # Try reading from UI grid
-      elbl_m <- matrix("", n_lbl, n_lbl, dimnames = list(ids_for_lbl, ids_for_lbl))
-      any_label <- FALSE
-      for (i in seq_len(n_lbl)) for (j in seq_len(n_lbl)) {
-        v <- input[[paste0("elbl_", i, "_", j)]]
-        if (!is.null(v) && nzchar(trimws(v))) {
-          elbl_m[i, j] <- trimws(v)
-          any_label <- TRUE
+    has_rv_elbl <- !is.null(rv$edge_labels) &&
+                   identical(dim(rv$edge_labels), c(n_lbl, n_lbl))
+    elbl_m    <- matrix("", n_lbl, n_lbl, dimnames = list(ids_for_lbl, ids_for_lbl))
+    any_label <- FALSE
+    for (i in seq_len(n_lbl)) for (j in seq_len(n_lbl)) {
+      v <- input[[paste0("elbl_", i, "_", j)]]
+      if (!is.null(v) && nzchar(trimws(v))) {
+        elbl_m[i, j] <- trimws(v)
+        any_label    <- TRUE
+      } else if (has_rv_elbl) {
+        cell <- rv$edge_labels[i, j]
+        if (!is.na(cell) && nzchar(trimws(cell))) {
+          elbl_m[i, j] <- cell
+          any_label    <- TRUE
         }
       }
-      if (any_label) edge_labels_arg <- elbl_m
     }
+    edge_labels_arg <- if (any_label) elbl_m else NULL
     if (!is.null(edge_labels_arg))
       edge_labels_arg[] <- gsub("\\n", "\n", edge_labels_arg, fixed = TRUE)
     rv$edge_labels_arg <- edge_labels_arg
