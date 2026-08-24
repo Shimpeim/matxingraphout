@@ -1484,10 +1484,14 @@ server <- function(input, output, session) {
     # Read overlay matrix (if enabled)
     overlay <- NULL
     if (isTRUE(input$use_overlay)) {
+      has_rv_ovl <- !is.null(rv$overlay) &&
+                    identical(dim(rv$overlay), c(n, n)) &&
+                    identical(rownames(rv$overlay), ids)
       ovl <- matrix(0, n, n, dimnames = list(ids, ids))
       for (i in seq_len(n)) for (j in seq_len(n)) {
         v <- input[[paste0("ovl_", i, "_", j)]]
         if (!is.null(v) && !is.na(v)) ovl[i, j] <- v
+        else if (has_rv_ovl)           ovl[i, j] <- rv$overlay[i, j]
       }
       rv$overlay <- ovl
       overlay <- ovl
