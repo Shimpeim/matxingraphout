@@ -147,6 +147,11 @@ label       { font-size:12px !important; font-weight:500 !important; color:#4a55
 .form-control { font-size:13px !important; }
 .shiny-input-container { margin-bottom:8px; }
 .mode-active { background:#c53030 !important; border-color:#9b2c2c !important; color:white !important; }
+/* Slide-builder pane visibility: ?pane=left shows only input column, ?pane=right shows only output */
+body.pane-left-only  #pane-right { display:none !important; }
+body.pane-left-only  #pane-left  { width:100% !important; max-width:none !important; }
+body.pane-right-only #pane-left  { display:none !important; }
+body.pane-right-only #pane-right { width:100% !important; max-width:none !important; }
 #coord-display { font-size:11px; color:#718096; font-family:monospace; min-width:220px; padding:2px 0; }
 .ruler-x-row { display:flex; flex-direction:row; }
 .ruler-corner { width:30px; height:30px; flex-shrink:0; background:#edf2f7;
@@ -426,6 +431,13 @@ document.addEventListener('DOMContentLoaded', function() {
   }
 });
 
+// Apply pane-visibility class sent by the server (?pane=left / ?pane=right).
+// Used by slide-builder to show only the input or output side of the app.
+Shiny.addCustomMessageHandler('set_pane_class', function(msg) {
+  if (msg.pane === 'left')  document.body.classList.add('pane-left-only');
+  if (msg.pane === 'right') document.body.classList.add('pane-right-only');
+});
+
 })();
     "))
   ),
@@ -438,7 +450,7 @@ document.addEventListener('DOMContentLoaded', function() {
   fluidRow(
 
     # ── LEFT : input panels ─────────────────────────────────────────────────
-    column(5,
+    column(5, id = "pane-left",
 
       # Nodes ---
       tags$div(class = "panel-box",
@@ -688,7 +700,7 @@ document.addEventListener('DOMContentLoaded', function() {
     ),
 
     # ── RIGHT : output panels ───────────────────────────────────────────────
-    column(7,
+    column(7, id = "pane-right",
       tags$div(class = "panel-box",
         tabsetPanel(id = "out_tabs",
 
@@ -773,6 +785,16 @@ server <- function(input, output, session) {
     result           = NULL,
     error            = NULL
   )
+
+  # Show only left or right column when URL contains ?pane=left or ?pane=right
+  # (slide-builder integration: ALL shows both, LEFT shows inputs, RIGHT shows outputs)
+  observe({
+    query <- parseQueryString(session$clientData$url_search)
+    pane  <- query[["pane"]]
+    if (!is.null(pane) && tolower(pane) %in% c("left", "right")) {
+      session$sendCustomMessage("set_pane_class", list(pane = tolower(pane)))
+    }
+  })
 
   # ── Node table ────────────────────────────────────────────────────────────
 
