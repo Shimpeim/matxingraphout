@@ -431,11 +431,21 @@ document.addEventListener('DOMContentLoaded', function() {
   }
 });
 
-// Apply pane-visibility class sent by the server (?pane=left / ?pane=right).
-// Used by slide-builder to show only the input or output side of the app.
+// Apply pane-visibility class from slide-builder (live editor) or Shiny server (published HTML).
+function _applyPaneClass(pane) {
+  document.body.classList.remove('pane-left-only', 'pane-right-only');
+  if (pane === 'left')  document.body.classList.add('pane-left-only');
+  if (pane === 'right') document.body.classList.add('pane-right-only');
+}
+// postMessage path: slide-builder sends {type:'shiny-set-pane', pane:'left'/'right'/'all'}
+// without reloading the iframe, so the Shiny session is preserved across slides.
+window.addEventListener('message', function(e) {
+  if (e.data && e.data.type === 'shiny-set-pane')
+    _applyPaneClass((e.data.pane || 'all').toLowerCase());
+});
+// Shiny server path: used when iframe is embedded with ?pane= in the URL (published HTML).
 Shiny.addCustomMessageHandler('set_pane_class', function(msg) {
-  if (msg.pane === 'left')  document.body.classList.add('pane-left-only');
-  if (msg.pane === 'right') document.body.classList.add('pane-right-only');
+  _applyPaneClass(msg.pane || 'all');
 });
 
 })();
