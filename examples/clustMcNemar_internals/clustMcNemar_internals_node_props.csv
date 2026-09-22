@@ -1,0 +1,26 @@
+id,label,shape,colour,fontcolour,stroke,x,y,width,height
+raw_df,raw_df,ellipse,#fff9c4,#5d4037,#f9a825,100,340,110,44
+normalize,"normalize_\nstudy_data",rounded,#bbdefb,#0d47a1,#1565c0,300,220,168,50
+normalised_df,normalised_df,ellipse,#e8f5e9,#1b5e20,#388e3c,500,220,138,44
+prepare,"prepare_\nanalysis_data",rounded,#bbdefb,#0d47a1,#1565c0,300,440,168,50
+derive_corr,"derive_\ncorrectness",rect,#f5f5f5,#37474f,#546e7a,500,380,148,44
+cell_id,"cell_id\n(interaction)",ellipse,#e8f5e9,#1b5e20,#388e3c,500,500,128,44
+correct_cols,"correct_*\ncolumns",ellipse,#e8f5e9,#1b5e20,#388e3c,700,360,128,44
+prep_df,prep_df,ellipse,#e8f5e9,#1b5e20,#388e3c,700,500,100,44
+combn_pairs,"combn()\npairs",rect,#f5f5f5,#37474f,#546e7a,900,440,110,44
+compare_pair,"compare_pair\n(per pair)",rect,#f5f5f5,#37474f,#546e7a,1100,340,148,50
+perm_fn,"perm_test_\nmcnemar",rounded,#bbdefb,#0d47a1,#1565c0,1300,160,168,50
+valid_ab,"NA-filtered\nvectors",ellipse,#e8f5e9,#1b5e20,#388e3c,1500,100,132,44
+mcnemar_bc,mcnemar_bc(),rect,#f5f5f5,#37474f,#546e7a,1500,200,128,44
+T_star,"T* (observed)",ellipse,#ffe0b2,#bf360c,#e65100,1700,160,118,44
+swap_draws,"swap_draws\nmatrix",ellipse,#e8f5e9,#1b5e20,#388e3c,1500,300,132,44
+perm_T,"perm_T\nvector",ellipse,#e8f5e9,#1b5e20,#388e3c,1700,280,112,44
+perm_p,perm_p,ellipse,#ffe0b2,#bf360c,#e65100,1900,220,100,44
+boot_fn,"bootstrap_\nrate_diff",rounded,#bbdefb,#0d47a1,#1565c0,1300,500,168,50
+cell_rows,"cell_rows\n(list)",ellipse,#e8f5e9,#1b5e20,#388e3c,1500,460,122,44
+draw_cells,"draw_cells\nmatrix",ellipse,#e8f5e9,#1b5e20,#388e3c,1500,560,132,44
+boot_delta,"boot_delta\nvector",ellipse,#e8f5e9,#1b5e20,#388e3c,1700,500,128,44
+CI,"ci_low, ci_high",ellipse,#ffe0b2,#bf360c,#e65100,1900,480,132,44
+pair_result,"pair_result\n(1-row df)",ellipse,#ffe0b2,#bf360c,#e65100,1100,600,128,44
+p_adjust,"p.adjust()\nHolm",rect,#f5f5f5,#37474f,#546e7a,1300,640,122,44
+mrmc_result,mrmc_result,ellipse,#ffcc80,#bf360c,#ef6c00,1500,640,128,44

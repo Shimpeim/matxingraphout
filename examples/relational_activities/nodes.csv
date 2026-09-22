@@ -1,0 +1,57 @@
+id,label,shape,colour,stroke,fontcolour,width,height,x,y
+A,Relational Activities,rect,#ffffff,1,#000000,160,40,0,0
+B1,Caregivers,rect,#ffffff,1,#000000,110,40,0,0
+B2,Patients,rect,#ffffff,1,#000000,100,40,0,0
+C1,"demonstrate readiness to
+respond to crises",rect,#ffffff,1,#000000,185,55,0,0
+C2,"work to adopt and sustain
+supportive roles",rect,#ffffff,1,#000000,185,55,0,0
+C3,"seek to create social
+capital",rect,#ffffff,2,#000000,165,55,0,0
+C4,"seek to mitigate loss of
+social capital",rect,#ffffff,2,#000000,185,55,0,0
+D1,"mobilises (family) affective
+or relational resources",rect,#ffffff,1,#000000,210,55,0,0
+D2,"mobilises relational
+solidarity across distal
+informal networks",rect,#ffffff,1,#000000,185,65,0,0
+D3,"seeks to build relations with
+health professionals",rect,#ffffff,1,#000000,200,55,0,0
+D4,"seeks to sustain proximal
+informal networks",rect,#ffffff,1,#000000,185,55,0,0
+D5,"negotiates indifferent or
+hostile health professionals",rect,#ffffff,1,#000000,200,55,0,0
+D6,"experiences loss of support
+from informal networks",rect,#ffffff,1,#000000,195,55,0,0
+E1,"experiences exclusion from
+clinical interactions",rect,#ffffff,1,#000000,190,55,0,0
+E2,"seeks to restore informal
+social networks",rect,#ffffff,1,#000000,185,55,0,0
+E3,"Experiences secondary
+stigmatisation",rect,#ffffff,1,#000000,165,55,0,0
+F1,"seek to sustain social
+capital",rect,#ffffff,2,#000000,165,55,0,0
+F2,"seek to mitigate loss of
+social capital",rect,#ffffff,2,#000000,185,55,0,0
+F3,"seek to maintain social
+integration",rect,#ffffff,2,#000000,170,55,0,0
+G1,"seeks to sustain friendship
+networks",rect,#ffffff,1,#000000,195,55,0,0
+G2,"seeks to sustain intimate
+relationships",rect,#ffffff,1,#000000,185,55,0,0
+G3,"seeks to build relations with
+health professionals",rect,#ffffff,1,#000000,200,55,0,0
+G4,"experiences latent/felt
+stigma",rect,#ffffff,1,#000000,170,55,0,0
+G5,"experiences enacted
+stigma",rect,#ffffff,1,#000000,150,55,0,0
+G6,"performs controls on
+disclosure of diagnosis",rect,#ffffff,1,#000000,175,55,0,0
+G7,"works to integrate illness
+identity into family life",rect,#ffffff,1,#000000,185,55,0,0
+H1,"works to demonstrate
+social integration in
+informal social networks",rect,#ffffff,1,#000000,185,65,0,0
+H2,"experiences loss of status
+as a socially competent
+adult",rect,#ffffff,1,#000000,195,65,0,0

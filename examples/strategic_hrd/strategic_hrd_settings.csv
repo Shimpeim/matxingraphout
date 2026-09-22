@@ -1,0 +1,15 @@
+Setting,Value
+layout,manual
+directed,TRUE
+default_width,200
+default_height,75
+default_fontsize,11
+default_fontcolour,#222222
+default_stroke,#adb5bd
+edge_colour,#555555
+edge_width,1.5
+overlay_edge_colour,#555555
+overlay_edge_width,1.5
+overlay_edge_style,dashed
+show_legend,TRUE
+legend_title,Four Causes — Strategic HRD
