@@ -1,0 +1,6 @@
+"colour","label"
+"#cfe2ff","Baseline covariate (recorded)"
+"#fff3cd","Randomised treatment"
+"#e9ecef","Latent / unobservable (frailty)"
+"#f8d7da","Potential (counterfactual) quantity"
+"#d1e7dd","Recorded outcome / status"

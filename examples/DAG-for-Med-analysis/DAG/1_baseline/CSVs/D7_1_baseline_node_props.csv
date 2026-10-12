@@ -1,0 +1,23 @@
+"id","label","shape","colour","fontcolour","stroke","x","y","width","height"
+"site","site
+(Sites 1-3)","rounded","#cfe2ff","#222222","#6ea8fe",80,60,170,52
+"age","age","rounded","#cfe2ff","#222222","#6ea8fe",80,140,170,52
+"sex","sex","rounded","#cfe2ff","#222222","#6ea8fe",80,220,170,52
+"onset_days","onset_days
+(days since onset)","rounded","#cfe2ff","#222222","#6ea8fe",80,300,170,52
+"feat_ph","feat_ph
+(pulmonary haemorrhage)","rounded","#cfe2ff","#222222","#6ea8fe",320,60,170,52
+"feat_rd","feat_rd
+(respiratory distress)","rounded","#cfe2ff","#222222","#6ea8fe",320,150,170,52
+"feat_hd","feat_hd
+(haemodynamic instability)","rounded","#cfe2ff","#222222","#6ea8fe",320,240,170,52
+"feat_aki","feat_aki
+(acute kidney injury)","rounded","#cfe2ff","#222222","#6ea8fe",320,330,170,52
+"feat_thr","feat_thr
+(thrombocytopenia)","rounded","#cfe2ff","#222222","#6ea8fe",320,420,170,52
+"feat_mild","feat_mild
+(mild respiratory only)","rounded","#cfe2ff","#222222","#6ea8fe",600,120,170,52
+"feat_oth","feat_oth
+(other)","rounded","#cfe2ff","#222222","#6ea8fe",600,300,170,52
+"sofa_bl","sofa_bl
+(baseline SOFA)","rounded","#cfe2ff","#222222","#6ea8fe",860,300,170,52

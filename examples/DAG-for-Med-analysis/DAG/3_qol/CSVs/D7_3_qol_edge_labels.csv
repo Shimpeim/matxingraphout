@@ -1,0 +1,11 @@
+"","age","sofa_bl","feat_ph","arm","U","S","health","Y"
+"age","","","","","","","via P(die)","-0.20 /year"
+"sofa_bl","","","","","","","via P(die)","-1.2 /SOFA point"
+"feat_ph","","","","","","","via P(die)",""
+"arm","","","","","","(as Model 2)","","MP: +5 / +2 / 0 / 0
+(Phys/Psych/Soc/Env)"
+"U","","","","","","(as Model 2)","qnorm of rescaled U",""
+"S","","","","","","","",""
+"health","","","","","","","","+9 / +6 / +4 / +3
+(Phys/Psych/Soc/Env)"
+"Y","","","","","","","",""

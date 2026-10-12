@@ -1,0 +1,44 @@
+"id","label","shape","colour","fontcolour","stroke","x","y","width","height"
+"site","site
+(Sites 1-3)","rounded","#cfe2ff","#222222","#6ea8fe",80,40,170,52
+"sex","sex","rounded","#cfe2ff","#222222","#6ea8fe",80,120,170,52
+"onset_days","onset_days
+(days since onset)","rounded","#cfe2ff","#222222","#6ea8fe",80,200,170,52
+"age","age","rounded","#cfe2ff","#222222","#6ea8fe",80,480,170,52
+"feat_ph","feat_ph
+(pulmonary haemorrhage)","rounded","#cfe2ff","#222222","#6ea8fe",300,40,170,52
+"feat_rd","feat_rd
+(respiratory distress)","rounded","#cfe2ff","#222222","#6ea8fe",300,120,170,52
+"feat_hd","feat_hd
+(haemodynamic instability)","rounded","#cfe2ff","#222222","#6ea8fe",300,200,170,52
+"feat_aki","feat_aki
+(acute kidney injury)","rounded","#cfe2ff","#222222","#6ea8fe",300,280,170,52
+"feat_thr","feat_thr
+(thrombocytopenia)","rounded","#cfe2ff","#222222","#6ea8fe",300,360,170,52
+"feat_mild","feat_mild
+(mild respiratory only)","rounded","#cfe2ff","#222222","#6ea8fe",520,80,170,52
+"feat_oth","feat_oth
+(other)","rounded","#cfe2ff","#222222","#6ea8fe",520,240,170,52
+"sofa_bl","sofa_bl
+(baseline SOFA)","rounded","#cfe2ff","#222222","#6ea8fe",520,400,170,52
+"arm","arm
+(MP vs placebo, 1:1)","rect","#fff3cd","#222222","#d4a017",80,620,170,52
+"U","U
+(latent frailty)","circle","#e9ecef","#222222","#6c757d",520,640,110,110
+"S","S: alive at Day 90
+(S0, S1 -> stratum)","ellipse","#f8d7da","#222222","#dc3545",760,520,210,70
+"death_day","death_day","rect","#d1e7dd","#222222","#198754",1000,440,170,52
+"death28","death28
+(primary outcome)","rect","#d1e7dd","#222222","#198754",1220,440,170,52
+"health","health
+(f(U, risks))","circle","#e9ecef","#222222","#6c757d",760,700,110,110
+"Y","Y0, Y1: WHOQOL-BREF
+potential (4 domains)","ellipse","#f8d7da","#222222","#dc3545",1000,700,210,70
+"ltfu","ltfu
+(lost to follow-up)","diamond","#e2d9f3","#222222","#6f42c1",760,860,190,80
+"vs_d90","vs_d90
+(Alive / Died / LTFU)","rect","#d1e7dd","#222222","#198754",1000,580,170,52
+"qol90_done","qol90_done
+(WHOQOL completed)","diamond","#e2d9f3","#222222","#6f42c1",1220,620,190,80
+"whoqol90","whoqol90_*
+(observed; undefined if dead)","rect","#d1e7dd","#222222","#198754",1220,780,170,52

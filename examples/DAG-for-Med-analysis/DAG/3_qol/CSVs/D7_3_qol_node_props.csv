@@ -1,0 +1,16 @@
+"id","label","shape","colour","fontcolour","stroke","x","y","width","height"
+"age","age","rounded","#cfe2ff","#222222","#6ea8fe",80,80,170,52
+"sofa_bl","sofa_bl
+(baseline SOFA)","rounded","#cfe2ff","#222222","#6ea8fe",80,200,170,52
+"feat_ph","feat_ph
+(pulmonary haemorrhage)","rounded","#cfe2ff","#222222","#6ea8fe",80,320,170,52
+"arm","arm
+(MP vs placebo, 1:1)","rect","#fff3cd","#222222","#d4a017",80,560,170,52
+"U","U
+(latent frailty)","circle","#e9ecef","#222222","#6c757d",360,760,110,110
+"S","S: alive at Day 90
+(S0, S1 -> stratum)","ellipse","#f8d7da","#222222","#dc3545",700,700,210,70
+"health","health
+(f(U, risks))","circle","#e9ecef","#222222","#6c757d",560,320,110,110
+"Y","Y0, Y1: WHOQOL-BREF
+potential (4 domains)","ellipse","#f8d7da","#222222","#dc3545",900,320,210,70
