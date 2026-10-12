@@ -1,0 +1,83 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" width="6249" height="4473" viewBox="0 0 6249 4473" overflow="visible">
+  <defs>
+    <marker id="arrowhead" markerWidth="10" markerHeight="7" refX="9" refY="3.5" orient="auto"><polygon points="0 0,10 3.5,0 7" fill="#444444"/></marker>
+    <marker id="arrowhead-ov" markerWidth="10" markerHeight="7" refX="9" refY="3.5" orient="auto"><polygon points="0 0,10 3.5,0 7" fill="#dc3545"/></marker>
+  </defs>
+  <!-- edges -->
+  <line x1="230" y1="250.6" x2="2322.4" y2="119.8" marker-end="url(#arrowhead)" stroke="#444444" stroke-width="1.6" fill="none"/>
+  <line x1="230" y1="2534.3" x2="4000.4" y2="3072.9" marker-end="url(#arrowhead)" stroke="#444444" stroke-width="1.6" fill="none"/>
+  <line x1="206.3" y1="2492.7" x2="4021.5" y2="993.9" marker-end="url(#arrowhead)" stroke="#444444" stroke-width="1.6" fill="none"/>
+  <text x="1732.4" y="1889.2" text-anchor="middle" dominant-baseline="auto" font-size="10" fill="#444444" font-family="Helvetica,Arial,sans-serif">effect of interest</text>
+  <line x1="2121.7" y1="3861.1" x2="2393.5" y2="191.8" marker-end="url(#arrowhead)" stroke="#444444" stroke-width="1.6" fill="none"/>
+  <line x1="2157.8" y1="3873.5" x2="4071.5" y2="1002.9" marker-end="url(#arrowhead)" stroke="#444444" stroke-width="1.6" fill="none"/>
+  <line x1="2436.4" y1="180.1" x2="4080.4" y2="3057.1" marker-end="url(#arrowhead)" stroke="#444444" stroke-width="1.6" fill="none"/>
+  <text x="3094" y="1326.9" text-anchor="middle" dominant-baseline="auto" font-size="10" fill="#444444" font-family="Helvetica,Arial,sans-serif">S = S(A)</text>
+  <line x1="2466.3" y1="148.5" x2="4032.2" y2="931.5" marker-end="url(#arrowhead)" stroke="#444444" stroke-width="1.6" fill="none"/>
+  <line x1="2465.3" y1="150.6" x2="6019.6" y2="2064.4" marker-end="url(#arrowhead)" stroke="#444444" stroke-width="1.6" fill="none"/>
+  <text x="3887" y="905.6" text-anchor="middle" dominant-baseline="auto" font-size="10" fill="#444444" font-family="Helvetica,Arial,sans-serif">LL share of survivors</text>
+  <text x="3887" y="918.6" text-anchor="middle" dominant-baseline="auto" font-size="10" fill="#444444" font-family="Helvetica,Arial,sans-serif">only partially identified</text>
+  <line x1="4155" y1="997" x2="6021.6" y2="2063.6" marker-end="url(#arrowhead)" stroke="#444444" stroke-width="1.6" fill="none"/>
+  <!-- overlay edges -->
+  <line x1="4153.4" y1="3058.8" x2="6017.2" y2="2126.9" marker-end="url(#arrowhead-ov)" stroke="#dc3545" stroke-width="1.2" fill="none" stroke-dasharray="6,3"/>
+  <text x="4898.9" y="2669" text-anchor="middle" dominant-baseline="auto" font-size="10" fill="#dc3545" font-family="Helvetica,Arial,sans-serif">survivors in each arm = mixture</text>
+  <text x="4898.9" y="2682" text-anchor="middle" dominant-baseline="auto" font-size="10" fill="#dc3545" font-family="Helvetica,Arial,sans-serif">of LL and DL (or LD);</text>
+  <text x="4898.9" y="2695" text-anchor="middle" dominant-baseline="auto" font-size="10" fill="#dc3545" font-family="Helvetica,Arial,sans-serif">trim to extremes =&gt; bounds</text>
+  <!-- nodes -->
+  <rect x="40" y="228.5" width="190" height="56" rx="12.3" fill="#cfe2ff" stroke="#6ea8fe" stroke-width="1.5"/>
+  <text x="135" y="249.1" text-anchor="middle" dominant-baseline="middle" font-size="11" fill="#222222" font-family="Helvetica,Arial,sans-serif">X: baseline covariates</text>
+  <text x="135" y="263.9" text-anchor="middle" dominant-baseline="middle" font-size="11" fill="#222222" font-family="Helvetica,Arial,sans-serif">(SOFA, age, ...)</text>
+  <rect x="40" y="2492.7" width="190" height="56" fill="#fff3cd" stroke="#d4a017" stroke-width="1.5"/>
+  <text x="135" y="2513.3" text-anchor="middle" dominant-baseline="middle" font-size="11" fill="#222222" font-family="Helvetica,Arial,sans-serif">A: arm</text>
+  <text x="135" y="2528.2" text-anchor="middle" dominant-baseline="middle" font-size="11" fill="#222222" font-family="Helvetica,Arial,sans-serif">(MP vs placebo)</text>
+  <circle cx="2116.2" cy="3935.9" r="75" fill="#e9ecef" stroke="#6c757d" stroke-width="1.5"/>
+  <text x="2116.2" y="3935.9" text-anchor="middle" dominant-baseline="middle" font-size="11" fill="#222222" font-family="Helvetica,Arial,sans-serif">U: unmeasured frailty</text>
+  <circle cx="2399.2" cy="115" r="75" fill="#e9ecef" stroke="#6c757d" stroke-width="1.5"/>
+  <text x="2399.2" y="100.2" text-anchor="middle" dominant-baseline="middle" font-size="11" fill="#222222" font-family="Helvetica,Arial,sans-serif">G = (S(0), S(1))</text>
+  <text x="2399.2" y="115" text-anchor="middle" dominant-baseline="middle" font-size="11" fill="#222222" font-family="Helvetica,Arial,sans-serif">all four strata possible</text>
+  <text x="2399.2" y="129.9" text-anchor="middle" dominant-baseline="middle" font-size="11" fill="#222222" font-family="Helvetica,Arial,sans-serif">(LL, DL, LD, DD)</text>
+  <rect x="4002.4" y="3058.8" width="190" height="56" fill="#d1e7dd" stroke="#198754" stroke-width="1.5"/>
+  <text x="4097.4" y="3079.4" text-anchor="middle" dominant-baseline="middle" font-size="11" fill="#222222" font-family="Helvetica,Arial,sans-serif">S: alive at Day 90</text>
+  <text x="4097.4" y="3094.2" text-anchor="middle" dominant-baseline="middle" font-size="11" fill="#222222" font-family="Helvetica,Arial,sans-serif">(observed)</text>
+  <ellipse cx="4097.4" cy="964.1" rx="115" ry="38" fill="#f8d7da" stroke="#dc3545" stroke-width="1.5"/>
+  <text x="4097.4" y="956.7" text-anchor="middle" dominant-baseline="middle" font-size="11" fill="#222222" font-family="Helvetica,Arial,sans-serif">Y(a): QoL at Day 90</text>
+  <text x="4097.4" y="971.5" text-anchor="middle" dominant-baseline="middle" font-size="11" fill="#222222" font-family="Helvetica,Arial,sans-serif">(defined only if alive)</text>
+  <polygon points="6078.6,2041.2 6208.6,2096.2 6078.6,2151.2 5948.6,2096.2" fill="#fde2c4" stroke="#fd7e14" stroke-width="1.5"/>
+  <text x="6078.6" y="2088.8" text-anchor="middle" dominant-baseline="middle" font-size="11" fill="#222222" font-family="Helvetica,Arial,sans-serif">SACE ∈ [L, U]</text>
+  <text x="6078.6" y="2103.6" text-anchor="middle" dominant-baseline="middle" font-size="11" fill="#222222" font-family="Helvetica,Arial,sans-serif">(sharp bounds)</text>
+  <!-- legend -->
+  <rect x="12" y="4061" width="230" height="412" fill="white" stroke="#cbd5e0" stroke-width="1" rx="4"/>
+  <text x="24" y="4078" font-size="11" font-weight="bold" fill="#2d3748" font-family="Helvetica,Arial,sans-serif">A5 — Principal stratum: bounds without monotonicity (option b)</text>
+  <line x1="16" y1="4083" x2="238" y2="4083" stroke="#e2e8f0" stroke-width="1"/>
+  <text x="24" y="4100" font-size="9" font-weight="bold" fill="#718096" font-family="Helvetica,Arial,sans-serif" text-transform="uppercase">SHAPES</text>
+  <rect x="30" y="4110" width="24" height="14" rx="4" fill="#e8f0fe" stroke="#4a5568" stroke-width="1"/>
+  <text x="64" y="4121" font-size="10" fill="#2d3748" font-family="Helvetica,Arial,sans-serif">Baseline</text>
+  <rect x="30" y="4134" width="24" height="14" fill="#e8f0fe" stroke="#4a5568" stroke-width="1"/>
+  <text x="64" y="4145" font-size="10" fill="#2d3748" font-family="Helvetica,Arial,sans-serif">Treatment / recorded</text>
+  <circle cx="42" cy="4165" r="8" fill="#e8f0fe" stroke="#4a5568" stroke-width="1"/>
+  <text x="64" y="4169" font-size="10" fill="#2d3748" font-family="Helvetica,Arial,sans-serif">Latent</text>
+  <ellipse cx="42" cy="4189" rx="12" ry="7" fill="#e8f0fe" stroke="#4a5568" stroke-width="1"/>
+  <text x="64" y="4193" font-size="10" fill="#2d3748" font-family="Helvetica,Arial,sans-serif">Potential outcome</text>
+  <polygon points="42,4205 54,4213 42,4221 30,4213" fill="#e8f0fe" stroke="#4a5568" stroke-width="1"/>
+  <text x="64" y="4217" font-size="10" fill="#2d3748" font-family="Helvetica,Arial,sans-serif">Analysed quantity / target</text>
+  <text x="24" y="4238" font-size="9" font-weight="bold" fill="#718096" font-family="Helvetica,Arial,sans-serif" text-transform="uppercase">NODE COLOURS</text>
+  <rect x="32" y="4248" width="20" height="14" fill="#cfe2ff" stroke="#4a5568" stroke-width="1" rx="2"/>
+  <text x="64" y="4259" font-size="10" fill="#2d3748" font-family="Helvetica,Arial,sans-serif">Baseline covariates (recorded)</text>
+  <rect x="32" y="4272" width="20" height="14" fill="#fff3cd" stroke="#4a5568" stroke-width="1" rx="2"/>
+  <text x="64" y="4283" font-size="10" fill="#2d3748" font-family="Helvetica,Arial,sans-serif">Randomised treatment</text>
+  <rect x="32" y="4296" width="20" height="14" fill="#e9ecef" stroke="#4a5568" stroke-width="1" rx="2"/>
+  <text x="64" y="4307" font-size="10" fill="#2d3748" font-family="Helvetica,Arial,sans-serif">Latent / unobservable</text>
+  <rect x="32" y="4320" width="20" height="14" fill="#d1e7dd" stroke="#4a5568" stroke-width="1" rx="2"/>
+  <text x="64" y="4331" font-size="10" fill="#2d3748" font-family="Helvetica,Arial,sans-serif">Recorded variable</text>
+  <rect x="32" y="4344" width="20" height="14" fill="#f8d7da" stroke="#4a5568" stroke-width="1" rx="2"/>
+  <text x="64" y="4355" font-size="10" fill="#2d3748" font-family="Helvetica,Arial,sans-serif">Potential (counterfactual) quantity</text>
+  <rect x="32" y="4368" width="20" height="14" fill="#fde2c4" stroke="#4a5568" stroke-width="1" rx="2"/>
+  <text x="64" y="4379" font-size="10" fill="#2d3748" font-family="Helvetica,Arial,sans-serif">Quantity analysed / target</text>
+  <text x="24" y="4400" font-size="9" font-weight="bold" fill="#718096" font-family="Helvetica,Arial,sans-serif" text-transform="uppercase">EDGE TYPES</text>
+  <line x1="28" y1="4417" x2="56" y2="4417" stroke="#444444" stroke-width="1.6" fill="none"/>
+  <polygon points="56,4417 51,4414 51,4420" fill="#444444"/>
+  <text x="64" y="4421" font-size="10" fill="#2d3748" font-family="Helvetica,Arial,sans-serif">causal (assumed model)</text>
+  <line x1="28" y1="4441" x2="56" y2="4441" stroke="#dc3545" stroke-width="1.2" fill="none" stroke-dasharray="6,3"/>
+  <polygon points="56,4441 51,4438 51,4444" fill="#dc3545"/>
+  <text x="64" y="4445" font-size="10" fill="#2d3748" font-family="Helvetica,Arial,sans-serif">annotation: assumption / target</text>
+</svg>
