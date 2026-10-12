@@ -1,0 +1,6 @@
+"colour","label"
+"#cfe2ff","Baseline covariates (recorded)"
+"#fff3cd","Randomised treatment"
+"#d1e7dd","Recorded variable"
+"#f8d7da","Potential (counterfactual) quantity"
+"#fde2c4","Quantity analysed / target"
