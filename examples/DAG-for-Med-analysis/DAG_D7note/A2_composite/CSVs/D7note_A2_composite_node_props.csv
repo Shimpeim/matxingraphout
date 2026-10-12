@@ -1,0 +1,12 @@
+"id","label","shape","colour","fontcolour","stroke","x","y","width","height"
+"X","X: baseline covariates
+(SOFA, age, ...)","rounded","#cfe2ff","#222222","#6ea8fe",80,120,190,56
+"A","A: arm
+(MP vs placebo)","rect","#fff3cd","#222222","#d4a017",80,440,190,56
+"U","U: unmeasured frailty","circle","#e9ecef","#222222","#6c757d",360,640,150,150
+"S","S: alive at Day 90
+(observed)","rect","#d1e7dd","#222222","#198754",640,520,190,56
+"Y","Y(a): QoL at Day 90
+(defined only if alive)","ellipse","#f8d7da","#222222","#dc3545",640,220,230,76
+"T","Y*: QoL, or worst score
+if dead (survival + QoL)","diamond","#fde2c4","#222222","#fd7e14",920,380,260,110
